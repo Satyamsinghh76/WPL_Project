@@ -1,0 +1,23 @@
+#view {
+  padding: 16px;
+  padding-bottom: 80px;
+}
+
+#bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  background: #ffffff;
+  border-top: 1px solid #ddd;
+}
+
+#bottom-nav a {
+  flex: 1;
+  text-align: center;
+  padding: 12px;
+  text-decoration: none;
+  color: #444;
+  font-weight: 500;
+}
