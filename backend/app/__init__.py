@@ -1,1 +1,0 @@
-# AcademiaHub Backend Application
