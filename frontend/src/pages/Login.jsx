@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { BookOpen, User, Lock, AlertCircle } from 'lucide-react';
+import { Sparkles, User, Lock, AlertCircle } from 'lucide-react';
 
 const API_LOGIN = 'http://localhost:8000/api/accounts/login/';
 
@@ -57,9 +57,9 @@ export default function Login({ onLogin }) {
                 <div className="text-center lg:text-left space-y-6">
                     <div className="flex items-center justify-center lg:justify-start space-x-3">
                         <div className="w-12 h-12 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl flex items-center justify-center shadow-lg">
-                            <BookOpen className="w-7 h-7 text-white" />
+                            <Sparkles className="w-7 h-7 text-white" />
                         </div>
-                        <h1 className="text-3xl font-bold text-gradient">AcademiaHub</h1>
+                        <h1 className="text-3xl font-bold text-gradient">Scholr</h1>
                     </div>
 
                     <div className="space-y-4">
@@ -73,7 +73,6 @@ export default function Login({ onLogin }) {
                         <div className="p-8">
                             <div className="text-center mb-6">
                                 <h3 className="text-2xl font-bold text-academic-900">Sign In</h3>
-                                <p className="text-academic-600 mt-2">Authentication is now validated by backend API</p>
                             </div>
 
                             <form onSubmit={handleLogin} className="space-y-4">

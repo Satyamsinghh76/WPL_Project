@@ -65,7 +65,7 @@ export default function Signup({ onLogin }) {
     return (
         <div className="auth-page min-h-screen flex items-center justify-center p-4">
             <div className="max-w-xl w-full mx-auto card">
-                <h2 className="text-2xl font-bold text-academic-900 mb-4">Join the Academic Platform</h2>
+                <h2 className="text-2xl font-bold text-academic-900 mb-4">Join Scholr</h2>
                 <form onSubmit={handleSignup} className="space-y-3">
                     <input
                         className="input"

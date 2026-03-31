@@ -1,4 +1,4 @@
-# AcademiaHub
+# Scholr
 
 An academic social platform combining Reddit's topic-based discussions, LinkedIn's professional profiles, and peer-regulated content quality.
 
@@ -43,21 +43,21 @@ python manage.py runserver
 2. Create database:
 ```bash
 psql -U postgres
-CREATE DATABASE academiahub;
+CREATE DATABASE scholr;
 \q
 ```
 3. Run migrations to create tables and seed data:
 ```bash
 cd backend
-psql -U postgres -d academiahub -f migrations/001_create_tables.sql
-psql -U postgres -d academiahub -f migrations/002_seed_data.sql
+psql -U postgres -d scholr -f migrations/001_create_tables.sql
+psql -U postgres -d scholr -f migrations/002_seed_data.sql
 ```
 4. Update `settings.py`:
 ```env
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'academiahub',
+        'NAME': 'scholr',
         'USER': 'postgres',
         'PASSWORD': 'password',
         'HOST': 'localhost',
@@ -67,9 +67,9 @@ DATABASES = {
 ```
 
 **Test Users** (password: `password123`):
-- admin@academiahub.com (Administrator)
-- mod@academiahub.com (Moderator)  
-- verified@academiahub.com (Verified User)
+- admin@scholr.com (Administrator)
+- mod@scholr.com (Moderator)  
+- verified@scholr.com (Verified User)
 
 ---
 

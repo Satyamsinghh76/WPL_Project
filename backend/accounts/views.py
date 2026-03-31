@@ -11,27 +11,27 @@ from .models import AuthToken
 
 DEMO_USERS = {
 	'admin': {
-		'email': 'admin@academiahub.local',
+		'email': 'admin@scholr.local',
 		'full_name': 'Administrator',
 		'role': PlatformUser.ROLE_ADMIN,
 	},
 	'dev': {
-		'email': 'dev@academiahub.local',
+		'email': 'dev@scholr.local',
 		'full_name': 'Developer',
 		'role': PlatformUser.ROLE_DEVELOPER,
 	},
 	'mod': {
-		'email': 'mod@academiahub.local',
+		'email': 'mod@scholr.local',
 		'full_name': 'Moderator',
 		'role': PlatformUser.ROLE_MODERATOR,
 	},
 	'userv': {
-		'email': 'verified@academiahub.local',
+		'email': 'verified@scholr.local',
 		'full_name': 'Verified User',
 		'role': PlatformUser.ROLE_VERIFIED,
 	},
 	'user': {
-		'email': 'user@academiahub.local',
+		'email': 'user@scholr.local',
 		'full_name': 'General User',
 		'role': PlatformUser.ROLE_GENERAL,
 	},

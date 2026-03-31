@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import {
-    BookOpen,
+    Sparkles,
     User as UserIcon,
     Settings as SettingsIcon,
     LogOut,
@@ -27,8 +27,8 @@ import Signup from './pages/Signup';
 import './index.css';
 
 const API_BASE = 'http://localhost:8000/api';
-const USER_STORAGE_KEY = 'academiahub_current_user';
-const THEME_STORAGE_KEY = 'academiahub_theme';
+const USER_STORAGE_KEY = 'scholr_current_user';
+const THEME_STORAGE_KEY = 'scholr_theme';
 
 function App() {
     const [currentUser, setCurrentUser] = useState(null);
@@ -300,9 +300,9 @@ function App() {
                                 </button>
                                 <Link to="/" className="flex items-center space-x-2 ml-2 lg:ml-0">
                                     <div className="w-8 h-8 bg-gradient-to-br from-primary-500 to-primary-600 rounded-lg flex items-center justify-center">
-                                        <BookOpen className="w-5 h-5 text-white" />
+                                        <Sparkles className="w-5 h-5 text-white" />
                                     </div>
-                                    <span className="text-xl font-bold text-gradient">AcademiaHub</span>
+                                    <span className="text-xl font-bold text-gradient">Scholr</span>
                                 </Link>
                             </div>
 
