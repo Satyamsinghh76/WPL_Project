@@ -47,3 +47,18 @@ class Report(models.Model):
 
 	def __str__(self):
 		return f"Report #{self.id} - {self.status}"
+
+
+class Comment(models.Model):
+	author = models.ForeignKey(PlatformUser, on_delete=models.CASCADE, related_name='comments')
+	post = models.ForeignKey(Post, on_delete=models.CASCADE, related_name='comments')
+	content = models.TextField()
+	is_deleted = models.BooleanField(default=False)
+	created_at = models.DateTimeField(auto_now_add=True)
+	updated_at = models.DateTimeField(auto_now=True)
+
+	class Meta:
+		ordering = ['created_at']
+
+	def __str__(self):
+		return f"Comment {self.id} by {self.author.username}"

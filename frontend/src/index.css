@@ -37,6 +37,11 @@
     font-family: 'Inter', system-ui, sans-serif;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
+
+  .dark body {
+    background-color: #0b1220;
+    color: #e2e8f0;
+  }
 }
 
 @layer components {
@@ -102,6 +107,102 @@
   
   .text-gradient {
     @apply bg-gradient-to-r from-blue-600 to-gray-600 bg-clip-text text-transparent;
+  }
+}
+
+@layer utilities {
+  .theme-switching *,
+  .theme-switching *::before,
+  .theme-switching *::after {
+    transition: none !important;
+  }
+
+  .dark .card {
+    background-color: #111827;
+    border-color: #334155;
+    color: #e2e8f0;
+  }
+
+  .dark .input,
+  .dark .textarea,
+  .dark select {
+    background-color: #0f172a;
+    border-color: #334155;
+    color: #e2e8f0;
+  }
+
+  .dark .btn-outline {
+    border-color: #475569;
+    color: #e2e8f0;
+  }
+
+  .dark .btn-ghost {
+    color: #cbd5e1;
+  }
+
+  .dark .bg-white {
+    background-color: #111827 !important;
+  }
+
+  .dark .bg-academic-50 {
+    background-color: #0b1220 !important;
+  }
+
+  .dark .text-academic-900,
+  .dark .text-academic-800,
+  .dark .text-academic-700 {
+    color: #e2e8f0 !important;
+  }
+
+  .dark .text-academic-600,
+  .dark .text-academic-500 {
+    color: #94a3b8 !important;
+  }
+
+  .dark .border-academic-200,
+  .dark .border-gray-200,
+  .dark .border-gray-300 {
+    border-color: #334155 !important;
+  }
+
+  .dark .hover\:bg-academic-100:hover,
+  .dark .hover\:bg-academic-50:hover,
+  .dark .hover\:bg-gray-100:hover,
+  .dark .hover\:bg-gray-50:hover {
+    background-color: #1f2937 !important;
+  }
+
+  .dark .bg-blue-50 {
+    background-color: #172554 !important;
+  }
+
+  .dark .text-blue-900 {
+    color: #bfdbfe !important;
+  }
+
+  .dark .text-blue-800,
+  .dark .text-blue-700,
+  .dark .text-blue-600 {
+    color: #93c5fd !important;
+  }
+
+  .dark .settings-page label,
+  .dark .settings-page h2,
+  .dark .settings-page p,
+  .dark .settings-page span {
+    color: #e2e8f0;
+  }
+
+  .dark .settings-page .input,
+  .dark .settings-page .textarea {
+    background-color: #0f172a;
+    border-color: #475569;
+    color: #e2e8f0;
+  }
+
+  .dark .settings-page .btn-primary {
+    background-color: #2563eb;
+    color: #ffffff;
   }
 }
 

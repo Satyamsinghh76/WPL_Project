@@ -1,6 +1,23 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
-import { BookOpen, User as UserIcon, Settings as SettingsIcon, LogOut, Menu, X, Search, Bell, ChevronDown, Home as HomeIcon, Users, FileText, Shield, Code } from 'lucide-react';
+import {
+    BookOpen,
+    User as UserIcon,
+    Settings as SettingsIcon,
+    LogOut,
+    Menu,
+    X,
+    Search,
+    Bell,
+    ChevronDown,
+    Home as HomeIcon,
+    FileText,
+    Shield,
+    Code,
+    Users,
+    Moon,
+    Sun,
+} from 'lucide-react';
 import Home from './pages/Home';
 import PostDetail from './pages/PostDetail';
 import Profile from './pages/Profile';
@@ -9,106 +26,271 @@ import Login from './pages/Login';
 import Signup from './pages/Signup';
 import './index.css';
 
-const INITIAL_POSTS = [
-    { 
-        id: 1, 
-        topic: 'Computer Science', 
-        title: 'Stateless Architecture in Modern Web Apps', 
-        content: 'A stateless architecture ensures that no client context is stored on the server between requests. This improves scalability as any server can handle any request.',
-        references: 'Fielding, R. T. (2000). Architectural Styles and the Design of Network-based Software Architectures.',
-        author: 'Dr. Sarah Chen',
-        upvotes: 42,
-        downvotes: 3,
-        timestamp: '2 hours ago'
-    },
-    { 
-        id: 2, 
-        topic: 'Sociology', 
-        title: 'The Impact of Gamification on Academic Participation',
-        content: 'Gamification elements like points and badges can temporarily increase engagement, but sustained intrinsic motivation requires deeper structural alignment with learning goals.',
-        references: 'Deterding, S. et al. (2011). From game design elements to gamefulness: defining gamification.',
-        author: 'Prof. Michael Roberts',
-        upvotes: 28,
-        downvotes: 5,
-        timestamp: '5 hours ago'
-    },
-    {
-        id: 3,
-        topic: 'Physics',
-        title: 'Quantum Entanglement in Information Theory',
-        content: 'Recent advances in quantum computing have demonstrated that entangled particles can be used for instant information transfer across vast distances, challenging our understanding of spacetime.',
-        references: 'Nielsen, M. A. & Chuang, I. L. (2010). Quantum Computation and Quantum Information.',
-        author: 'Dr. Elena Volkov',
-        upvotes: 67,
-        downvotes: 8,
-        timestamp: '1 day ago'
-    }
-];
-
-const TOPICS = [
-    { id: 'cs', name: 'Computer Science', icon: Code, subtopics: ['Algorithms', 'Architecture', 'AI', 'Machine Learning'] },
-    { id: 'soc', name: 'Sociology', icon: Users, subtopics: ['Culture', 'Social Networks', 'Urban Studies'] },
-    { id: 'phy', name: 'Physics', icon: Shield, subtopics: ['Quantum', 'Astrophysics', 'Thermodynamics'] },
-    { id: 'math', name: 'Mathematics', icon: FileText, subtopics: ['Calculus', 'Linear Algebra', 'Statistics'] }
-];
+const API_BASE = 'http://localhost:8000/api';
+const USER_STORAGE_KEY = 'academiahub_current_user';
+const THEME_STORAGE_KEY = 'academiahub_theme';
 
 function App() {
-    const [role, setRole] = useState('General User');
-    const [posts, setPosts] = useState(INITIAL_POSTS);
-    const [formData, setFormData] = useState({ title: '', topic: '', content: '', refs: '' });
+    const [currentUser, setCurrentUser] = useState(null);
+    const [posts, setPosts] = useState([]);
+    const [topics, setTopics] = useState([]);
+    const [formData, setFormData] = useState({ title: '', topic_id: '', content: '', refs: '' });
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
+    const [isLoadingPosts, setIsLoadingPosts] = useState(false);
+    const [theme, setTheme] = useState(() => localStorage.getItem(THEME_STORAGE_KEY) || 'light');
 
-    const handlePostForm = (e) => {
+    const role = currentUser?.role || 'General User';
+    const isLoggedIn = Boolean(currentUser);
+
+    const authHeaders = (hasJson = false) => {
+        const headers = {};
+        if (hasJson) {
+            headers['Content-Type'] = 'application/json';
+        }
+        if (currentUser?.token) {
+            headers.Authorization = `Bearer ${currentUser.token}`;
+        }
+        return headers;
+    };
+
+    const fetchTopics = async () => {
+        const response = await fetch(`${API_BASE}/topics/`);
+        if (!response.ok) {
+            return;
+        }
+        const data = await response.json();
+        setTopics(data.results || []);
+    };
+
+    const fetchPosts = async (userId = currentUser?.id) => {
+        setIsLoadingPosts(true);
+        try {
+            const url = userId ? `${API_BASE}/posts/?viewer_id=${userId}` : `${API_BASE}/posts/`;
+            const response = await fetch(url);
+            if (!response.ok) {
+                return;
+            }
+            const data = await response.json();
+            setPosts(data.results || []);
+        } finally {
+            setIsLoadingPosts(false);
+        }
+    };
+
+    useEffect(() => {
+        const raw = localStorage.getItem(USER_STORAGE_KEY);
+        if (!raw) {
+            return;
+        }
+        try {
+            setCurrentUser(JSON.parse(raw));
+        } catch {
+            localStorage.removeItem(USER_STORAGE_KEY);
+        }
+    }, []);
+
+    useEffect(() => {
+        const root = document.documentElement;
+        root.classList.add('theme-switching');
+        if (theme === 'dark') {
+            root.classList.add('dark');
+        } else {
+            root.classList.remove('dark');
+        }
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                root.classList.remove('theme-switching');
+            });
+        });
+        localStorage.setItem(THEME_STORAGE_KEY, theme);
+    }, [theme]);
+
+    useEffect(() => {
+        fetchTopics();
+        fetchPosts(currentUser?.id);
+    }, [currentUser?.id]);
+
+    const filteredPosts = useMemo(() => {
+        if (!searchQuery.trim()) {
+            return posts;
+        }
+        const query = searchQuery.toLowerCase();
+        return posts.filter(
+            (post) =>
+                post.title.toLowerCase().includes(query) ||
+                post.content.toLowerCase().includes(query) ||
+                post.author.toLowerCase().includes(query) ||
+                (post.topic || '').toLowerCase().includes(query)
+        );
+    }, [posts, searchQuery]);
+
+    const handlePostForm = async (e) => {
         e.preventDefault();
-        if (!formData.title || !formData.content || !formData.topic) return;
+        if (!currentUser) {
+            alert('Please log in to publish a discussion.');
+            return false;
+        }
 
-        setPosts([{
-            id: Math.max(...posts.map(p => p.id), 0) + 1,
-            title: formData.title,
-            topic: formData.topic,
-            content: formData.content,
-            references: formData.refs || 'No references provided.',
-            author: role === 'Administrator' ? 'Admin' : role,
-            upvotes: 0,
-            downvotes: 0,
-            timestamp: 'Just now'
-        }, ...posts]);
+        const response = await fetch(`${API_BASE}/posts/`, {
+            method: 'POST',
+            headers: authHeaders(true),
+            body: JSON.stringify({
+                title: formData.title,
+                content: formData.content,
+                references: formData.refs,
+                topic_id: formData.topic_id || null,
+            }),
+        });
 
-        setFormData({ title: '', topic: '', content: '', refs: '' });
+        const data = await response.json();
+        if (!response.ok) {
+            alert(data.detail || 'Unable to publish post.');
+            return false;
+        }
+
+        setPosts((prev) => [data, ...prev]);
+        setFormData({ title: '', topic_id: '', content: '', refs: '' });
+        return true;
     };
 
-    const handleDelete = (id) => setPosts(posts.filter(p => p.id !== id));
-    const isLoggedIn = role !== 'General User';
+    const handleDelete = async (id) => {
+        if (!currentUser) {
+            return;
+        }
 
-    const getRoleIcon = (role) => {
-        switch(role) {
-            case 'Administrator': return <Shield className="w-4 h-4" />;
-            case 'Moderator': return <Users className="w-4 h-4" />;
-            case 'Developer': return <Code className="w-4 h-4" />;
-            case 'Verified User': return <UserIcon className="w-4 h-4" />;
-            default: return <UserIcon className="w-4 h-4" />;
+        const response = await fetch(`${API_BASE}/posts/${id}/`, {
+            method: 'DELETE',
+            headers: authHeaders(),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+            alert(data.detail || 'Unable to delete post.');
+            return;
+        }
+
+        setPosts((prev) => prev.filter((post) => post.id !== id));
+    };
+
+    const handleVote = async (postId, value) => {
+        if (!currentUser) {
+            alert('Please log in to vote.');
+            return;
+        }
+
+        const response = await fetch(`${API_BASE}/posts/${postId}/vote/`, {
+            method: 'POST',
+            headers: authHeaders(true),
+            body: JSON.stringify({ value }),
+        });
+        const data = await response.json();
+
+        if (!response.ok) {
+            alert(data.detail || 'Vote failed.');
+            return;
+        }
+
+        setPosts((prev) =>
+            prev.map((post) =>
+                post.id === postId
+                    ? {
+                          ...post,
+                          score: data.score,
+                          user_vote: data.user_vote,
+                      }
+                    : post
+            )
+        );
+    };
+
+    const handleCreateTopic = async ({ name, parent_id }) => {
+        if (!currentUser) {
+            alert('Please log in as admin to add topics.');
+            return false;
+        }
+
+        const response = await fetch(`${API_BASE}/topics/`, {
+            method: 'POST',
+            headers: authHeaders(true),
+            body: JSON.stringify({
+                name,
+                parent_id: parent_id || null,
+            }),
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+            alert(data.detail || 'Unable to create topic.');
+            return false;
+        }
+
+        setTopics((prev) => [...prev, data]);
+        return true;
+    };
+
+    const handleLoginSuccess = (user) => {
+        setCurrentUser(user);
+        localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
+    };
+
+    const handleLogout = async () => {
+        if (currentUser?.token) {
+            try {
+                await fetch(`${API_BASE}/accounts/logout/`, {
+                    method: 'POST',
+                    headers: authHeaders(),
+                });
+            } catch {
+                // Ignore network failures and clear client session anyway.
+            }
+        }
+        setCurrentUser(null);
+        localStorage.removeItem(USER_STORAGE_KEY);
+    };
+
+    const getRoleIcon = (roleName) => {
+        switch (roleName) {
+            case 'Administrator':
+                return <Shield className="w-4 h-4" />;
+            case 'Moderator':
+                return <Users className="w-4 h-4" />;
+            case 'Developer':
+                return <Code className="w-4 h-4" />;
+            default:
+                return <UserIcon className="w-4 h-4" />;
         }
     };
 
-    const getRoleColor = (role) => {
-        switch(role) {
-            case 'Administrator': return 'text-red-600 bg-red-50';
-            case 'Moderator': return 'text-orange-600 bg-orange-50';
-            case 'Developer': return 'text-purple-600 bg-purple-50';
-            case 'Verified User': return 'text-blue-600 bg-blue-50';
-            default: return 'text-gray-600 bg-gray-50';
+    const getRoleColor = (roleName) => {
+        switch (roleName) {
+            case 'Administrator':
+                return 'text-red-600 bg-red-50';
+            case 'Moderator':
+                return 'text-orange-600 bg-orange-50';
+            case 'Developer':
+                return 'text-purple-600 bg-purple-50';
+            case 'Verified User':
+                return 'text-blue-600 bg-blue-50';
+            default:
+                return 'text-gray-600 bg-gray-50';
         }
     };
+
+    const parentTopicMap = topics.reduce((acc, topic) => {
+        const key = topic.parent_id || 0;
+        if (!acc[key]) {
+            acc[key] = [];
+        }
+        acc[key].push(topic);
+        return acc;
+    }, {});
 
     return (
         <Router>
             <div className="min-h-screen bg-academic-50">
-                {/* Header */}
                 <header className="sticky top-0 z-50 bg-white border-b border-academic-200 backdrop-blur-lg bg-opacity-90">
                     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                         <div className="flex items-center justify-between h-16">
-                            {/* Logo and Menu */}
                             <div className="flex items-center">
                                 <button
                                     onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -124,7 +306,6 @@ function App() {
                                 </Link>
                             </div>
 
-                            {/* Search Bar */}
                             <div className="hidden md:flex flex-1 max-w-md mx-8">
                                 <div className="relative w-full">
                                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-academic-400 w-4 h-4" />
@@ -138,15 +319,20 @@ function App() {
                                 </div>
                             </div>
 
-                            {/* User Menu */}
                             <div className="flex items-center space-x-4">
+                                <button
+                                    className="btn btn-ghost"
+                                    title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+                                    onClick={() => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))}
+                                >
+                                    {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+                                </button>
                                 {isLoggedIn && (
-                                    <button className="relative p-2 rounded-lg hover:bg-academic-100 transition-colors">
+                                    <button className="relative p-2 rounded-lg hover:bg-academic-100 transition-colors" title="Notifications">
                                         <Bell className="w-5 h-5 text-academic-600" />
-                                        <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
                                     </button>
                                 )}
-                                
+
                                 <div className="flex items-center space-x-2">
                                     {isLoggedIn ? (
                                         <>
@@ -155,16 +341,13 @@ function App() {
                                                 <span>{role}</span>
                                             </div>
                                             <div className="flex items-center space-x-2">
-                                                <Link to="/profile" className="btn btn-ghost">
+                                                <Link to="/profile" className="btn btn-ghost" title="Profile">
                                                     <UserIcon className="w-4 h-4" />
                                                 </Link>
-                                                <Link to="/settings" className="btn btn-ghost">
+                                                <Link to="/settings" className="btn btn-ghost" title="Settings">
                                                     <SettingsIcon className="w-4 h-4" />
                                                 </Link>
-                                                <button 
-                                                    onClick={() => setRole('General User')} 
-                                                    className="btn btn-ghost text-red-600 hover:text-red-700"
-                                                >
+                                                <button onClick={handleLogout} className="btn btn-ghost text-red-600 hover:text-red-700" title="Log out">
                                                     <LogOut className="w-4 h-4" />
                                                 </button>
                                             </div>
@@ -186,8 +369,9 @@ function App() {
                 </header>
 
                 <div className="flex max-w-7xl mx-auto">
-                    {/* Sidebar */}
-                    <aside className={`fixed lg:static inset-y-0 left-0 z-40 w-64 bg-white border-r border-academic-200 transform transition-transform duration-200 ease-in-out lg:transform-none ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} mt-16 lg:mt-0`}>
+                    <aside
+                        className={`fixed lg:static inset-y-0 left-0 z-40 w-64 bg-white border-r border-academic-200 transform transition-transform duration-200 ease-in-out lg:transform-none ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} mt-16 lg:mt-0`}
+                    >
                         <div className="h-full overflow-y-auto p-6">
                             <nav className="space-y-6">
                                 <div>
@@ -197,64 +381,74 @@ function App() {
                                             <HomeIcon className="w-4 h-4" />
                                             <span>Home Feed</span>
                                         </Link>
-                                        <Link to="/trending" className="flex items-center space-x-2 px-3 py-2 rounded-lg hover:bg-academic-100 text-academic-700 transition-colors">
-                                            <FileText className="w-4 h-4" />
-                                            <span>Trending</span>
-                                        </Link>
                                     </div>
                                 </div>
 
                                 <div>
                                     <h3 className="text-xs font-semibold text-academic-500 uppercase tracking-wider mb-3">Explore Topics</h3>
                                     <div className="space-y-2">
-                                        {TOPICS.map(topic => {
-                                            const Icon = topic.icon;
-                                            return (
-                                                <div key={topic.id} className="group">
-                                                    <button className="flex items-center justify-between w-full px-3 py-2 rounded-lg hover:bg-academic-100 text-academic-700 transition-colors">
-                                                        <div className="flex items-center space-x-2">
-                                                            <Icon className="w-4 h-4" />
-                                                            <span className="font-medium">{topic.name}</span>
-                                                        </div>
+                                        {(parentTopicMap[0] || []).map((topic) => (
+                                            <div key={topic.id} className="group">
+                                                <button className="flex items-center justify-between w-full px-3 py-2 rounded-lg hover:bg-academic-100 text-academic-700 transition-colors">
+                                                    <div className="flex items-center space-x-2">
+                                                        <FileText className="w-4 h-4" />
+                                                        <span className="font-medium">{topic.name}</span>
+                                                    </div>
+                                                    {(parentTopicMap[topic.id] || []).length > 0 && (
                                                         <ChevronDown className="w-4 h-4 transform group-hover:rotate-180 transition-transform" />
-                                                    </button>
+                                                    )}
+                                                </button>
+                                                {(parentTopicMap[topic.id] || []).length > 0 && (
                                                     <div className="ml-6 mt-1 space-y-1 hidden group-hover:block">
-                                                        {topic.subtopics.map(sub => (
-                                                            <Link key={sub} to="/" className="block px-3 py-1 text-sm text-academic-600 hover:text-academic-900 hover:bg-academic-50 rounded transition-colors">
-                                                                {sub}
-                                                            </Link>
+                                                        {(parentTopicMap[topic.id] || []).map((sub) => (
+                                                            <div
+                                                                key={sub.id}
+                                                                className="block px-3 py-1 text-sm text-academic-600 hover:text-academic-900 hover:bg-academic-50 rounded transition-colors"
+                                                            >
+                                                                {sub.name}
+                                                            </div>
                                                         ))}
                                                     </div>
-                                                </div>
-                                            );
-                                        })}
+                                                )}
+                                            </div>
+                                        ))}
+                                        {topics.length === 0 && <div className="text-sm text-academic-500 px-3">No topics yet.</div>}
                                     </div>
                                 </div>
                             </nav>
                         </div>
                     </aside>
 
-                    {/* Main Content */}
                     <main className="flex-1 p-6 lg:p-8">
                         <Routes>
-                            <Route path="/" element={<Home posts={posts} role={role} handleDelete={handleDelete} 
-                                handlePostForm={handlePostForm} formData={formData} setFormData={setFormData} />} />
-                            <Route path="/post/:id" element={<PostDetail posts={posts} />} />
-                            <Route path="/login" element={<Login setRole={setRole} />} />
-                            <Route path="/signup" element={<Signup setRole={setRole} />} />
-                            <Route path="/profile" element={<Profile role={role} />} />
-                            <Route path="/settings" element={<Settings />} />
+                            <Route
+                                path="/"
+                                element={
+                                    <Home
+                                        posts={filteredPosts}
+                                        role={role}
+                                        currentUser={currentUser}
+                                        topics={topics}
+                                        isLoadingPosts={isLoadingPosts}
+                                        handleDelete={handleDelete}
+                                        handlePostForm={handlePostForm}
+                                        handleVote={handleVote}
+                                        handleCreateTopic={handleCreateTopic}
+                                        formData={formData}
+                                        setFormData={setFormData}
+                                    />
+                                }
+                            />
+                            <Route path="/post/:id" element={<PostDetail posts={posts} currentUser={currentUser} onVote={handleVote} />} />
+                            <Route path="/login" element={<Login onLogin={handleLoginSuccess} />} />
+                            <Route path="/signup" element={<Signup onLogin={handleLoginSuccess} />} />
+                            <Route path="/profile" element={<Profile currentUser={currentUser} posts={posts} onUserUpdate={handleLoginSuccess} />} />
+                            <Route path="/settings" element={<Settings currentUser={currentUser} />} />
                         </Routes>
                     </main>
                 </div>
 
-                {/* Mobile overlay */}
-                {sidebarOpen && (
-                    <div 
-                        className="fixed inset-0 bg-black bg-opacity-50 z-30 lg:hidden"
-                        onClick={() => setSidebarOpen(false)}
-                    />
-                )}
+                {sidebarOpen && <div className="fixed inset-0 bg-black bg-opacity-50 z-30 lg:hidden" onClick={() => setSidebarOpen(false)} />}
             </div>
         </Router>
     );

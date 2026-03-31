@@ -26,13 +26,15 @@ npm run dev
 
 **Backend (Terminal 2):**
 ```bash
-cd backend
 python -m venv venv
 venv\Scripts\activate  # Windows | source venv/bin/activate (Mac/Linux)
 pip install -r requirements.txt
-uvicorn app.main:app --reload
+
+cd backend
+python manage.py makemigrations
+python manage.py migrate
+python manage.py runserver
 # Runs on http://localhost:8000
-# API Docs: http://localhost:8000/docs
 ```
 
 ### PostgreSQL Setup
@@ -50,10 +52,18 @@ cd backend
 psql -U postgres -d academiahub -f migrations/001_create_tables.sql
 psql -U postgres -d academiahub -f migrations/002_seed_data.sql
 ```
-4. Update `backend/.env`:
+4. Update `settings.py`:
 ```env
-DATABASE_URL=postgresql+asyncpg://postgres:password@localhost:5432/academiahub
-SECRET_KEY=your-secret-key-here
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'academiahub',
+        'USER': 'postgres',
+        'PASSWORD': 'password',
+        'HOST': 'localhost',
+        'PORT': '5432',
+    }
+}
 ```
 
 **Test Users** (password: `password123`):
@@ -94,9 +104,8 @@ SECRET_KEY=your-secret-key-here
 * CSS3 (custom styling)
 
 **Backend:**
-* FastAPI (Python)
-* Uvicorn (ASGI server)
-* PostgreSQL + SQLAlchemy (async)
+* Django
+* PostgreSQL
 
 **Development:**
 * Git version control
@@ -171,35 +180,40 @@ The backend follows a clean, modular architecture:
 
 ```
 backend/
-├── app/
-│   ├── main.py              # FastAPI app entrypoint
-│   ├── core/                # Core configuration
-│   │   ├── config.py        # Settings & environment variables
-│   │   └── database.py      # SQLAlchemy engine & session
-│   ├── models/              # SQLAlchemy ORM models
-│   │   ├── user.py
-│   │   └── post.py
-│   ├── schemas/             # Pydantic request/response models
-│   │   ├── user.py
-│   │   └── post.py
-│   ├── api/v1/              # API routes (versioned)
-│   │   └── posts.py
-│   └── services/            # Business logic layer
-│       └── post_service.py
+├── manage.py
+├── backend/
+│   ├── settings.py
+│   └── urls.py
+├── apps/
+│   ├── accounts/
+│   ├── posts/
+│   ├── interactions/
+│   └── core/
 ├── migrations/              # SQL migration scripts
 │   ├── 001_create_tables.sql
 │   ├── 002_seed_data.sql
 │   └── README.md
+├── apis/
+│   └── v1/
+│       ├── urls.py
+│       ├── posts.py
+│       └── users.py
+├── services/
+│   └── post_service.py/
 ├── requirements.txt
-└── .env
+└── README.md
 ```
 
 **Architecture layers:**
-- **Models**: Database ORM models (SQLAlchemy)
-- **Schemas**: Request/response validation (Pydantic)
+- **Models**: Django ORM (database)
 - **Services**: Business logic and data operations
-- **API**: HTTP endpoints and routing
+- **API**: Django views (JSON responses)
 - **Core**: Configuration and shared utilities
+
+Flow :
+```
+API → Services → Models
+```
 
 ---
 
@@ -227,14 +241,14 @@ backend/
 
 **Frontend runs separately during development:**
 * Frontend: `http://localhost:5173` (Vite dev server)
-* Backend: `http://localhost:8000` (FastAPI)
+* Backend exposes REST APIs
+* Communication via fetch / HTTP
 * CORS enabled for cross-origin requests
 
 **Database:**
-* PostgreSQL relational database
-* SQLAlchemy ORM with async support (asyncpg driver)
-* SQL migration scripts (no ORM auto-migration)
-* Pydantic schemas for validation
+* PostgreSQL for production
+* SQLite for quick local development
+* Django ORM handles migrations
 
 **Architecture:**
 * Layered structure: API → Services → Models
@@ -291,11 +305,24 @@ backend/
 
 ## Resources
 
-* [FastAPI Documentation](https://fastapi.tiangolo.com/)
 * [PostgreSQL Documentation](https://www.postgresql.org/docs/)
 * [SQLAlchemy Documentation](https://docs.sqlalchemy.org/)
 * [React Documentation](https://react.dev/)
 * [Vite Documentation](https://vitejs.dev/)
+
+---
+
+## Deployment Strategy 
+
+```
+React App (Vercel) / Netlify (no react)
+        ↓ API calls
+Django API (Render/Railway)
+        ↓
+PostgreSQL
+        ↓
+Cloudinary / Supabase
+```
 
 ---
 
