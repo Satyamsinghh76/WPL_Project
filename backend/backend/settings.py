@@ -179,9 +179,10 @@ USE_TZ = True
 STATIC_URL = 'static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
-# Supabase configuration (optional, for storage/auth integration)
+# Supabase configuration (required for OAuth login)
 SUPABASE_URL = os.environ.get('SUPABASE_URL', '')
 SUPABASE_ANON_KEY = os.environ.get('SUPABASE_ANON_KEY', '')
+SUPABASE_JWT_SECRET = os.environ.get('SUPABASE_JWT_SECRET', '')
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field

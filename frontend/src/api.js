@@ -115,6 +115,19 @@ export const logout = (authHeaders) =>
     headers: authHeaders,
   });
 
+export const oauthLogin = (accessToken) =>
+  request('/accounts/oauth/callback/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ access_token: accessToken }),
+  });
+
+export const getMe = (authHeaders) =>
+  request('/accounts/me/', {
+    method: 'GET',
+    headers: authHeaders,
+  });
+
 // ============ USERS ============
 export const getUser = (userId, authHeaders) =>
   request(`/accounts/users/${userId}/`, {

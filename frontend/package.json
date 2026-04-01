@@ -4,9 +4,9 @@
   "description": "Scholr - An academic social platform that combines the best of Reddit's topic-based discussions, LinkedIn's professional profiles, and peer-regulated content quality. Built for scholars to share knowledge, connect, and maintain academic rigor.",
   "main": "index.js",
   "scripts": {
-  "dev": "vite",
-  "build": "vite build",
-  "preview": "vite preview"
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
   },
   "repository": {
     "type": "git",
@@ -21,6 +21,7 @@
   },
   "homepage": "https://github.com/Gitaanshhh/Scholr#readme",
   "dependencies": {
+    "@supabase/supabase-js": "^2.101.1",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-router-dom": "^7.13.1"

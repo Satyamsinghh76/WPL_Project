@@ -24,6 +24,8 @@ class PlatformUser(models.Model):
 	full_name = models.CharField(max_length=255)
 	institution = models.CharField(max_length=255, blank=True)
 	bio = models.TextField(blank=True)
+	profile_picture = models.URLField(max_length=500, blank=True)
+	supabase_id = models.CharField(max_length=255, blank=True, unique=True, null=True)
 	role = models.CharField(max_length=30, choices=ROLE_CHOICES, default=ROLE_GENERAL)
 	is_active = models.BooleanField(default=True)
 	created_at = models.DateTimeField(auto_now_add=True)

@@ -24,6 +24,7 @@ import Profile from './pages/Profile';
 import Settings from './pages/Settings';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
+import AuthCallback from './pages/AuthCallback';
 import * as API from './api';
 import './index.css';
 const USER_STORAGE_KEY = 'scholr_current_user';
@@ -463,6 +464,7 @@ function App() {
                             <Route path="/post/:id" element={<PostDetail posts={posts} currentUser={currentUser} onVote={handleVote} />} />
                             <Route path="/login" element={<Login onLogin={handleLoginSuccess} />} />
                             <Route path="/signup" element={<Signup onLogin={handleLoginSuccess} />} />
+                            <Route path="/auth/callback" element={<AuthCallback onLogin={handleLoginSuccess} />} />
                             <Route path="/profile" element={<Profile currentUser={currentUser} posts={posts} onUserUpdate={handleLoginSuccess} />} />
                             <Route path="/settings" element={<Settings currentUser={currentUser} />} />
                         </Routes>
