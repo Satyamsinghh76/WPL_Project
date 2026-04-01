@@ -132,6 +132,11 @@ else:
 #     "https://your-app.vercel.app",  # update after Vercel deploy
 # ]
 
+CORS_ALLOWED_ORIGINS = [
+    os.environ.get("FRONTEND_URL"),  # production (Vercel)
+    "http://localhost:3000",         # local dev (React/Next)
+]
+
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
 
