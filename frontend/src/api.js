@@ -193,4 +193,57 @@ export const getReports = (authHeaders) =>
     headers: authHeaders,
   });
 
+// ============ CHAT ============
+export const getConversations = (authHeaders, type = '') =>
+  request(`/conversations/${type ? `?type=${type}` : ''}`, {
+    method: 'GET',
+    headers: authHeaders,
+  });
+
+export const startConversation = (userId, authHeaders) =>
+  request('/conversations/', {
+    method: 'POST',
+    headers: authHeaders,
+    body: JSON.stringify({ user_id: userId, conv_type: 'direct' }),
+  });
+
+export const createGroupChat = (name, memberIds, authHeaders) =>
+  request('/conversations/', {
+    method: 'POST',
+    headers: authHeaders,
+    body: JSON.stringify({ conv_type: 'group', name, member_ids: memberIds }),
+  });
+
+export const getMessages = (convoId, authHeaders) =>
+  request(`/conversations/${convoId}/messages/`, {
+    method: 'GET',
+    headers: authHeaders,
+  });
+
+export const sendMessage = (convoId, content, authHeaders) =>
+  request(`/conversations/${convoId}/messages/`, {
+    method: 'POST',
+    headers: authHeaders,
+    body: JSON.stringify({ content }),
+  });
+
+export const getUnreadCount = (authHeaders) =>
+  request('/conversations/unread/', {
+    method: 'GET',
+    headers: authHeaders,
+  });
+
+export const getTopicRooms = (authHeaders) =>
+  request('/topic-rooms/', {
+    method: 'GET',
+    headers: authHeaders,
+  });
+
+export const joinTopicRoom = (topicId, authHeaders) =>
+  request('/topic-rooms/', {
+    method: 'POST',
+    headers: authHeaders,
+    body: JSON.stringify({ topic_id: topicId }),
+  });
+
 export { BASE_URL };

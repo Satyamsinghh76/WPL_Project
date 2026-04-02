@@ -71,3 +71,61 @@ class Comment(models.Model):
 
 	def __str__(self):
 		return f"Comment {self.id} by {self.author.username}"
+
+
+class Conversation(models.Model):
+	TYPE_DIRECT = 'direct'
+	TYPE_GROUP = 'group'
+	TYPE_TOPIC = 'topic'
+	TYPE_CHOICES = [
+		(TYPE_DIRECT, 'Direct Message'),
+		(TYPE_GROUP, 'Group Chat'),
+		(TYPE_TOPIC, 'Topic Room'),
+	]
+
+	name = models.CharField(max_length=255, blank=True)
+	conv_type = models.CharField(max_length=10, choices=TYPE_CHOICES, default=TYPE_DIRECT)
+	topic = models.OneToOneField(
+		'posts.Topic', null=True, blank=True, on_delete=models.CASCADE, related_name='chat_room'
+	)
+	created_by = models.ForeignKey(
+		PlatformUser, null=True, blank=True, on_delete=models.SET_NULL, related_name='created_conversations'
+	)
+	updated_at = models.DateTimeField(auto_now=True)
+	created_at = models.DateTimeField(auto_now_add=True)
+
+	class Meta:
+		ordering = ['-updated_at']
+
+	def __str__(self):
+		if self.conv_type == self.TYPE_DIRECT:
+			members = self.members.select_related('user').all()
+			names = [m.user.username for m in members]
+			return f"DM: {' <-> '.join(names)}"
+		return f"{self.get_conv_type_display()}: {self.name}"
+
+
+class ConversationMember(models.Model):
+	conversation = models.ForeignKey(Conversation, on_delete=models.CASCADE, related_name='members')
+	user = models.ForeignKey(PlatformUser, on_delete=models.CASCADE, related_name='chat_memberships')
+	last_read_at = models.DateTimeField(null=True, blank=True)
+	joined_at = models.DateTimeField(auto_now_add=True)
+
+	class Meta:
+		unique_together = ('conversation', 'user')
+
+	def __str__(self):
+		return f"{self.user.username} in {self.conversation_id}"
+
+
+class Message(models.Model):
+	conversation = models.ForeignKey(Conversation, on_delete=models.CASCADE, related_name='messages')
+	sender = models.ForeignKey(PlatformUser, on_delete=models.CASCADE, related_name='sent_messages')
+	content = models.TextField()
+	created_at = models.DateTimeField(auto_now_add=True)
+
+	class Meta:
+		ordering = ['created_at']
+
+	def __str__(self):
+		return f"Message {self.id} from {self.sender.username}"

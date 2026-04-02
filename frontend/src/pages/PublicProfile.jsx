@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { User, Calendar, Shield, Users, Code, CheckCircle, Mail, Phone, ExternalLink, Flag } from 'lucide-react';
+import { User, Calendar, Shield, Users, Code, CheckCircle, Mail, Phone, ExternalLink, Flag, MessageSquare } from 'lucide-react';
 import * as API from '../api';
 
 function formatJoinDate(isoTime) {
@@ -113,6 +113,21 @@ export default function PublicProfile({ posts, currentUser }) {
 
     const links = user.links || {};
     const canReport = Boolean(currentUser && (currentUser.acting_role || currentUser.role) !== 'General User');
+    const canMessage = Boolean(currentUser && currentUser.id !== user?.id);
+
+    const handleMessage = async () => {
+        if (!canMessage) return;
+        try {
+            await API.startConversation(user.id, {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${currentUser.token}`,
+            });
+            // The ChatWidget will pick up the new conversation on next poll
+            alert('Conversation started! Check the Messaging widget at the bottom right.');
+        } catch (err) {
+            alert(err?.message || 'Failed to start conversation.');
+        }
+    };
 
     const handleReportUser = async (e) => {
         e.preventDefault();
@@ -178,6 +193,15 @@ export default function PublicProfile({ posts, currentUser }) {
                         </div>
 
                         <div className="flex flex-wrap gap-2 mb-4">
+                            {canMessage && (
+                                <button
+                                    onClick={handleMessage}
+                                    className="inline-flex items-center gap-1 px-3 py-1 rounded-lg border border-primary-200 text-sm text-primary-600 hover:bg-primary-50 font-medium"
+                                >
+                                    <MessageSquare className="w-4 h-4" />
+                                    Message
+                                </button>
+                            )}
                             {user.email && (
                                 <a href={`mailto:${user.email}`} className="inline-flex items-center gap-1 px-3 py-1 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50">
                                     <Mail className="w-4 h-4" />

@@ -28,6 +28,7 @@ import Login from './pages/Login';
 import Signup from './pages/Signup';
 import AuthCallback from './pages/AuthCallback';
 import AdminUsers from './pages/AdminUsers';
+import ChatWidget from './components/ChatWidget';
 import * as API from './api';
 import './index.css';
 const USER_STORAGE_KEY = 'scholr_current_user';
@@ -491,6 +492,8 @@ function App() {
                 </div>
 
                 {sidebarOpen && <div className="fixed inset-0 bg-black bg-opacity-50 z-30 lg:hidden" onClick={() => setSidebarOpen(false)} />}
+
+                {isLoggedIn && <ChatWidget currentUser={currentUser} authHeaders={authHeaders} />}
             </div>
         </Router>
     );
