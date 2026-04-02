@@ -84,6 +84,40 @@ def _upsert_oauth_user(supabase_user):
 	return user, None
 
 
+def _delete_supabase_user(supabase_user_id):
+	if not supabase_user_id:
+		return True, None
+
+	service_role_key = settings.SUPABASE_SERVICE_ROLE_KEY
+	if not service_role_key:
+		return False, JsonResponse(
+			{'detail': 'Supabase service role key is required to delete OAuth users.'},
+			status=500,
+		)
+
+	delete_url = f"{settings.SUPABASE_URL.rstrip('/')}/auth/v1/admin/users/{supabase_user_id}"
+	request = urllib.request.Request(
+		delete_url,
+		method='DELETE',
+		headers={
+			'apikey': service_role_key,
+			'authorization': f'Bearer {service_role_key}',
+		},
+	)
+
+	try:
+		with urllib.request.urlopen(request, timeout=10) as response:
+			if response.status in (200, 204):
+				return True, None
+	except urllib.error.HTTPError as exc:
+			message = exc.read().decode('utf-8', errors='ignore') or exc.reason or 'Failed to delete Supabase user.'
+			return False, JsonResponse({'detail': message}, status=exc.code)
+	except urllib.error.URLError as exc:
+		return False, JsonResponse({'detail': f'Failed to reach Supabase: {exc.reason}'}, status=502)
+
+	return False, JsonResponse({'detail': 'Failed to delete Supabase user.'}, status=502)
+
+
 def role_options(request):
 	if request.method != 'GET':
 		return JsonResponse({'detail': 'Method not allowed.'}, status=405)
@@ -118,7 +152,7 @@ def users(request):
 		if get_effective_role(request, actor) != PlatformUser.ROLE_ADMIN:
 			return JsonResponse({'detail': 'Admin access required.'}, status=403)
 
-		records = PlatformUser.objects.all().values(
+		records = PlatformUser.objects.filter(is_active=True).values(
 			'id', 'username', 'email', 'email_verified', 'full_name', 'role', 'is_active', 'created_at'
 		)
 		return JsonResponse({'results': list(records)})
@@ -269,6 +303,13 @@ def user_detail(request, user_id):
 				user.role = payload['role']
 				update_fields.append('role')
 
+		if 'is_active' in payload:
+			if actor_role != PlatformUser.ROLE_ADMIN:
+				return JsonResponse({'detail': 'Only admins can update account status.'}, status=403)
+			if bool(payload['is_active']) != user.is_active:
+				user.is_active = bool(payload['is_active'])
+				update_fields.append('is_active')
+
 		if update_fields:
 			user.save(update_fields=update_fields)
 		return JsonResponse(_user_payload(user))
@@ -284,9 +325,12 @@ def user_detail(request, user_id):
 		if actor.id == user.id:
 			return JsonResponse({'detail': 'Cannot delete your own account.'}, status=400)
 
-		user.is_active = False
-		user.save(update_fields=['is_active'])
-		return JsonResponse({'detail': 'User deleted successfully.'}, status=204)
+		ok, error_response = _delete_supabase_user(user.supabase_id)
+		if not ok:
+			return error_response
+
+		user.delete()
+		return JsonResponse({'detail': 'User deleted successfully.'}, status=200)
 
 	return JsonResponse({'detail': 'Method not allowed.'}, status=405)
 

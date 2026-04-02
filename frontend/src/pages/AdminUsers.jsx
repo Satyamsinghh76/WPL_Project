@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Shield, RefreshCw, Users, ChevronDown, Trash2 } from 'lucide-react';
+import { Shield, RefreshCw, Users, ChevronDown, Trash2, Ban } from 'lucide-react';
 import * as API from '../api';
 
 const ROLE_OPTIONS = [
@@ -90,6 +90,23 @@ export default function AdminUsers({ currentUser, onUserUpdate }) {
         }
     };
 
+    const banUser = async (userId) => {
+        setSavingUserId(userId);
+        setError('');
+        try {
+            await API.updateUser(userId, { is_active: false }, {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${currentUser.token}`,
+            });
+
+            setUsers((prev) => prev.filter((user) => user.id !== userId));
+        } catch (err) {
+            setError(err?.message || 'Unable to ban user.');
+        } finally {
+            setSavingUserId(null);
+        }
+    };
+
     return (
         <div className="max-w-6xl mx-auto space-y-6">
             <div className="card bg-gradient-to-br from-slate-900 to-slate-700 text-white border-slate-700">
@@ -134,7 +151,7 @@ export default function AdminUsers({ currentUser, onUserUpdate }) {
                                     <th className="py-3 pr-4 font-medium">Email</th>
                                     <th className="py-3 pr-4 font-medium">Role</th>
                                     <th className="py-3 pr-4 font-medium">Change role</th>
-                                    <th className="py-3 pr-4 font-medium">Action</th>
+                                    <th className="py-3 pr-4 font-medium">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -164,14 +181,26 @@ export default function AdminUsers({ currentUser, onUserUpdate }) {
                                             </div>
                                         </td>
                                         <td className="py-4 pr-4">
-                                            <button
-                                                onClick={() => deleteUser(user.id)}
-                                                disabled={savingUserId === user.id || user.id === currentUser.id}
-                                                className="p-2 rounded-lg hover:bg-red-50 text-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                                title={user.id === currentUser.id ? 'Cannot delete your own account' : 'Delete user'}
-                                            >
-                                                <Trash2 className="w-4 h-4" />
-                                            </button>
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    onClick={() => banUser(user.id)}
+                                                    disabled={savingUserId === user.id || user.id === currentUser.id}
+                                                    className="inline-flex items-center gap-1 px-3 py-2 rounded-lg border border-amber-200 text-amber-700 hover:bg-amber-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                    title={user.id === currentUser.id ? 'Cannot ban your own account' : 'Ban user'}
+                                                >
+                                                    <Ban className="w-4 h-4" />
+                                                    Ban
+                                                </button>
+                                                <button
+                                                    onClick={() => deleteUser(user.id)}
+                                                    disabled={savingUserId === user.id || user.id === currentUser.id}
+                                                    className="inline-flex items-center gap-1 px-3 py-2 rounded-lg border border-red-200 text-red-700 hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                    title={user.id === currentUser.id ? 'Cannot delete your own account' : 'Delete user permanently'}
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                    Delete
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 ))}

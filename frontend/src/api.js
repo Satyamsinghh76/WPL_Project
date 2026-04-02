@@ -17,8 +17,16 @@ const BASE_URL = normalizeBaseUrl(RAW_BASE_URL);
 async function parseResponse(response) {
   const contentType = response.headers.get('content-type') || '';
 
+  if (response.status === 204) {
+    if (!response.ok) {
+      throw new Error(`Request failed with status ${response.status}`);
+    }
+    return {};
+  }
+
   if (contentType.includes('application/json')) {
-    const data = await response.json();
+    const text = await response.text();
+    const data = text ? JSON.parse(text) : {};
     if (!response.ok) {
       const message = data?.detail || data?.error || `Request failed with status ${response.status}`;
       throw new Error(message);
@@ -27,6 +35,9 @@ async function parseResponse(response) {
   }
 
   const text = await response.text();
+  if (!text && response.ok) {
+    return {};
+  }
   if (!response.ok) {
     throw new Error(text || `Request failed with status ${response.status}`);
   }
