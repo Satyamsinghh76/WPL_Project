@@ -70,10 +70,7 @@ An academic social platform combining Reddit's topic-based discussions, LinkedIn
 | Username | Password | Role |
 |----------|----------|------|
 | `admin` | `admin` | Administrator |
-| `mod` | `mod` | Moderator |
-| `dev` | `dev` | Developer |
-| `userV` | `userV` | Verified User |
-| `user` | `user` | General User |
+| _Removed_ | _Removed_ | Demo logins now only exist for the admin account |
 
 ### Local Development
 
@@ -123,6 +120,8 @@ VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key
 ```
 
+If you are developing locally without OAuth, you can leave the Supabase variables unset. Username/password login will still work; Google and LinkedIn login require the Supabase variables.
+
 ---
 
 ## OAuth Setup (Google & LinkedIn)
@@ -138,6 +137,10 @@ VITE_SUPABASE_ANON_KEY=your-anon-key
    - Site URL: `https://scholr-beryl.vercel.app`
    - Redirect URLs: `https://scholr-beryl.vercel.app/auth/callback`, `http://localhost:5173/auth/callback`
 
+6. After Google or LinkedIn login, users are prompted to set a local password before the account is activated as a Verified User.
+
+7. Frontend deploys on Vercel and backend deploys on Render; Supabase is only used for OAuth identity and storage.
+
 ---
 
 ## API Endpoints
@@ -147,7 +150,7 @@ VITE_SUPABASE_ANON_KEY=your-anon-key
 |--------|----------|-------------|
 | POST | `/api/accounts/login/` | Login with username/password |
 | POST | `/api/accounts/logout/` | Revoke auth token |
-| POST | `/api/accounts/oauth/callback/` | Exchange Supabase token for local token |
+| POST | `/api/accounts/oauth/callback/` | Exchange Supabase token and complete the local password step |
 | GET | `/api/accounts/me/` | Get current authenticated user |
 | GET | `/api/accounts/roles/` | List available roles |
 | GET | `/api/accounts/switchable-roles/` | Get roles current user can switch to |
@@ -155,10 +158,10 @@ VITE_SUPABASE_ANON_KEY=your-anon-key
 ### Users
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/accounts/users/` | List all users |
+| GET | `/api/accounts/users/` | List all users for admin management |
 | POST | `/api/accounts/users/` | Create new user (signup) |
 | GET | `/api/accounts/users/:id/` | Get user profile |
-| PATCH | `/api/accounts/users/:id/` | Update user profile |
+| PATCH | `/api/accounts/users/:id/` | Update user profile or change role as admin |
 
 ### Posts
 | Method | Endpoint | Description |

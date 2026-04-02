@@ -1,5 +1,6 @@
 from django.db import models
 from django.utils import timezone
+import json
 import secrets
 
 
@@ -24,6 +25,10 @@ class PlatformUser(models.Model):
 	full_name = models.CharField(max_length=255)
 	institution = models.CharField(max_length=255, blank=True)
 	bio = models.TextField(blank=True)
+	tagline = models.CharField(max_length=255, blank=True)
+	skills = models.TextField(blank=True, help_text='Comma-separated skills')
+	links = models.TextField(blank=True, help_text='JSON: {linkedin, github, website, gscholar, etc}')
+	phone_number = models.CharField(max_length=20, blank=True)
 	profile_picture = models.URLField(max_length=500, blank=True)
 	supabase_id = models.CharField(max_length=255, blank=True, unique=True, null=True)
 	role = models.CharField(max_length=30, choices=ROLE_CHOICES, default=ROLE_GENERAL)
@@ -35,6 +40,25 @@ class PlatformUser(models.Model):
 
 	def __str__(self):
 		return f"{self.username} ({self.role})"
+
+	def get_links_dict(self):
+		if not self.links:
+			return {}
+		try:
+			return json.loads(self.links)
+		except json.JSONDecodeError:
+			return {}
+
+	def set_links_dict(self, links_dict):
+		self.links = json.dumps(links_dict) if links_dict else ''
+
+	def get_skills_list(self):
+		if not self.skills:
+			return []
+		return [s.strip() for s in self.skills.split(',') if s.strip()]
+
+	def set_skills_list(self, skills_list):
+		self.skills = ','.join(skills_list) if skills_list else ''
 
 
 class AuthToken(models.Model):

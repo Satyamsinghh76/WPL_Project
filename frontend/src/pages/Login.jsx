@@ -2,15 +2,9 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Sparkles, User, Lock, AlertCircle } from 'lucide-react';
 import * as API from '../api';
-import { supabase } from '../supabase';
+import { supabase, isSupabaseConfigured } from '../supabase';
 
-const QUICK_LOGINS = [
-    { username: 'admin', password: 'admin', role: 'Administrator' },
-    { username: 'dev', password: 'dev', role: 'Developer' },
-    { username: 'mod', password: 'mod', role: 'Moderator' },
-    { username: 'userV', password: 'userV', role: 'Verified User' },
-    { username: 'user', password: 'user', role: 'General User' },
-];
+const QUICK_LOGINS = [{ username: 'admin', password: 'admin', role: 'Administrator' }];
 
 export default function Login({ onLogin }) {
     const navigate = useNavigate();
@@ -22,6 +16,10 @@ export default function Login({ onLogin }) {
 
     const handleOAuth = async (provider) => {
         setError('');
+        if (!isSupabaseConfigured || !supabase) {
+            setError('Google and LinkedIn login require VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.');
+            return;
+        }
         setOauthLoading(provider);
         try {
             const { error: oauthError } = await supabase.auth.signInWithOAuth({
@@ -139,10 +137,16 @@ export default function Login({ onLogin }) {
                                 </div>
                             </div>
 
+                            {!isSupabaseConfigured && (
+                                <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                                    Google and LinkedIn login are disabled until Supabase env vars are configured.
+                                </div>
+                            )}
+
                             <div className="space-y-3">
                                 <button
                                     onClick={() => handleOAuth('google')}
-                                    disabled={!!oauthLoading}
+                                    disabled={!!oauthLoading || !isSupabaseConfigured}
                                     className="w-full flex items-center justify-center space-x-3 px-4 py-2.5 border border-academic-200 rounded-lg hover:bg-academic-50 transition-colors disabled:opacity-50"
                                 >
                                     <svg className="w-5 h-5" viewBox="0 0 24 24">
@@ -158,7 +162,7 @@ export default function Login({ onLogin }) {
 
                                 <button
                                     onClick={() => handleOAuth('linkedin_oidc')}
-                                    disabled={!!oauthLoading}
+                                    disabled={!!oauthLoading || !isSupabaseConfigured}
                                     className="w-full flex items-center justify-center space-x-3 px-4 py-2.5 border border-academic-200 rounded-lg hover:bg-academic-50 transition-colors disabled:opacity-50"
                                 >
                                     <svg className="w-5 h-5" viewBox="0 0 24 24" fill="#0A66C2">

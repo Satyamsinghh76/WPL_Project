@@ -115,11 +115,14 @@ export const logout = (authHeaders) =>
     headers: authHeaders,
   });
 
-export const oauthLogin = (accessToken) =>
+export const oauthLogin = (accessToken, password = '') =>
   request('/accounts/oauth/callback/', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ access_token: accessToken }),
+    body: JSON.stringify({
+      access_token: accessToken,
+      ...(password ? { password } : {}),
+    }),
   });
 
 export const getMe = (authHeaders) =>
@@ -140,6 +143,17 @@ export const updateUser = (userId, userData, authHeaders) =>
     method: 'PATCH',
     headers: authHeaders,
     body: JSON.stringify(userData),
+  });
+
+export const getUsers = (authHeaders) =>
+  request('/accounts/users/', {
+    method: 'GET',
+    headers: authHeaders,
+  });
+
+export const getPublicProfile = (username) =>
+  request(`/accounts/public/${username}/`, {
+    method: 'GET',
   });
 
 export { BASE_URL };

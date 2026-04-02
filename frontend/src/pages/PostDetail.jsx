@@ -111,15 +111,15 @@ export default function PostDetail({ posts, currentUser, onVote }) {
                                 <h1 className="text-3xl font-bold text-academic-900 mb-4">{post.title}</h1>
 
                                 <div className="flex items-center space-x-4">
-                                    <div className="flex items-center space-x-2">
+                                    <Link to={`/profile/${post.author}`} className="flex items-center space-x-2 hover:opacity-80 transition-opacity">
                                         <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center">
                                             <User className="w-5 h-5 text-primary-600" />
                                         </div>
                                         <div>
-                                            <div className="font-medium text-academic-900">{post.author}</div>
+                                            <div className="font-medium text-academic-900 hover:text-primary-600 hover:underline">@{post.author}</div>
                                             <div className="text-sm text-academic-500">Contributor</div>
                                         </div>
-                                    </div>
+                                    </Link>
                                     <div className="flex items-center space-x-1 text-sm text-academic-500">
                                         <Calendar className="w-4 h-4" />
                                         <span>{formatDateTime(post.updated_at)}</span>
@@ -196,7 +196,9 @@ export default function PostDetail({ posts, currentUser, onVote }) {
                             <div key={comment.id} className="border border-academic-200 rounded-lg p-4">
                                 <div className="flex items-start justify-between gap-3">
                                     <div>
-                                        <div className="font-medium text-academic-900">{comment.author__username}</div>
+                                        <Link to={`/profile/${comment.author__username}`} className="font-medium text-academic-900 hover:text-primary-600 hover:underline transition-colors">
+                                            @{comment.author__username}
+                                        </Link>
                                         <div className="text-xs text-academic-500">{formatDateTime(comment.created_at)}</div>
                                     </div>
                                     {currentUser && (currentUser.username === comment.author__username || ['Administrator', 'Developer', 'Moderator'].includes(currentUser.role)) && (

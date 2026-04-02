@@ -21,10 +21,12 @@ import {
 import Home from './pages/Home';
 import PostDetail from './pages/PostDetail';
 import Profile from './pages/Profile';
+import PublicProfile from './pages/PublicProfile';
 import Settings from './pages/Settings';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import AuthCallback from './pages/AuthCallback';
+import AdminUsers from './pages/AdminUsers';
 import * as API from './api';
 import './index.css';
 const USER_STORAGE_KEY = 'scholr_current_user';
@@ -403,6 +405,12 @@ function App() {
                                             <HomeIcon className="w-4 h-4" />
                                             <span>Home Feed</span>
                                         </Link>
+                                        {currentUser?.role === 'Administrator' && (
+                                            <Link to="/admin/users" className="flex items-center space-x-2 px-3 py-2 rounded-lg hover:bg-academic-100 text-academic-700 transition-colors">
+                                                <Shield className="w-4 h-4" />
+                                                <span>Admin Users</span>
+                                            </Link>
+                                        )}
                                     </div>
                                 </div>
 
@@ -465,7 +473,9 @@ function App() {
                             <Route path="/login" element={<Login onLogin={handleLoginSuccess} />} />
                             <Route path="/signup" element={<Signup onLogin={handleLoginSuccess} />} />
                             <Route path="/auth/callback" element={<AuthCallback onLogin={handleLoginSuccess} />} />
+                            <Route path="/admin/users" element={<AdminUsers currentUser={currentUser} onUserUpdate={handleLoginSuccess} />} />
                             <Route path="/profile" element={<Profile currentUser={currentUser} posts={posts} onUserUpdate={handleLoginSuccess} />} />
+                            <Route path="/profile/:username" element={<PublicProfile posts={posts} />} />
                             <Route path="/settings" element={<Settings currentUser={currentUser} />} />
                         </Routes>
                     </main>

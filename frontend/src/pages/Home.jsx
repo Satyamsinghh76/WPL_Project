@@ -314,7 +314,9 @@ export default function Home({
                                             <p className="text-academic-600 mt-2 line-clamp-3">{post.content}</p>
 
                                             <div className="flex items-center space-x-4 mt-3 text-sm text-academic-500">
-                                                <span>by {post.author}</span>
+                                                <Link to={`/profile/${post.author}`} className="hover:text-primary-600 hover:underline transition-colors">
+                                                    by @{post.author}
+                                                </Link>
                                             </div>
                                         </div>
                                     </div>
