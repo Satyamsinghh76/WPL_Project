@@ -88,6 +88,10 @@ def _upsert_oauth_user(supabase_user):
 		supabase_id=sub,
 		role=PlatformUser.ROLE_VERIFIED,
 	)
+
+	# Send welcome/confirmation email for new OAuth account
+	send_welcome_email(user, needs_verification=False)
+
 	return user, None
 
 

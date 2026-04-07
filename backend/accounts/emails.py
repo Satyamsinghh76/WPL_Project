@@ -40,11 +40,10 @@ def send_password_reset_email(user, token):
     )
 
 
-def send_welcome_email(user):
+def send_welcome_email(user, needs_verification=True):
     link = f'{_frontend_url()}/login'
-    send_mail(
-        subject='Welcome to Scholr!',
-        message=(
+    if needs_verification:
+        body = (
             f'Hi {user.full_name},\n\n'
             f'Welcome to Scholr — your academic discussion platform.\n\n'
             f'Your account has been created with the username: {user.username}\n\n'
@@ -52,7 +51,20 @@ def send_welcome_email(user):
             f'Check your inbox for a verification link.\n\n'
             f'Log in here: {link}\n\n'
             f'— Scholr'
-        ),
+        )
+    else:
+        body = (
+            f'Hi {user.full_name},\n\n'
+            f'Welcome to Scholr — your academic discussion platform.\n\n'
+            f'Your account has been created via Google/LinkedIn with the username: {user.username}\n'
+            f'Your email ({user.email}) is already verified.\n\n'
+            f'You can now create posts, vote, and participate in discussions.\n\n'
+            f'Log in here: {link}\n\n'
+            f'— Scholr'
+        )
+    send_mail(
+        subject='Welcome to Scholr!',
+        message=body,
         from_email=settings.DEFAULT_FROM_EMAIL,
         recipient_list=[user.email],
         fail_silently=True,
