@@ -2,7 +2,6 @@ import json
 import urllib.request
 import urllib.error
 import logging
-import threading
 
 from django.conf import settings
 from django.http import JsonResponse
@@ -15,18 +14,6 @@ from .models import AuthToken, EmailToken, PlatformUser
 
 
 logger = logging.getLogger(__name__)
-
-
-def _run_async(target, *args, **kwargs):
-	thread = threading.Thread(target=target, args=args, kwargs=kwargs, daemon=True)
-	thread.start()
-
-
-def _send_password_reset_safe(user, token):
-	try:
-		send_password_reset_email(user, token)
-	except Exception:
-		logger.exception('Failed to send password reset email for user_id=%s', user.id)
 
 
 def _user_payload(user):
@@ -580,16 +567,20 @@ def forgot_password(request):
 	if not email:
 		return JsonResponse({'detail': 'email is required.'}, status=400)
 
-	# Always return success to prevent email enumeration
 	user = PlatformUser.objects.filter(email__iexact=email, is_active=True).first()
-	if user:
-		try:
-			token = EmailToken.create_for(user, EmailToken.PURPOSE_RESET, ttl_hours=1)
-			_run_async(_send_password_reset_safe, user, token)
-		except Exception:
-			logger.exception('Failed to send password reset email for user_id=%s', user.id)
+	if not user:
+		return JsonResponse({'detail': 'No account found with this email.'}, status=404)
 
-	return JsonResponse({'detail': 'If that email exists, a reset link has been sent.'})
+	try:
+		token = EmailToken.create_for(user, EmailToken.PURPOSE_RESET, ttl_hours=1)
+		sent = send_password_reset_email(user, token)
+		if not sent:
+			return JsonResponse({'detail': 'Password reset email could not be sent.'}, status=503)
+	except Exception:
+		logger.exception('Failed to send password reset email for user_id=%s', user.id)
+		return JsonResponse({'detail': 'Password reset email could not be sent.'}, status=503)
+
+	return JsonResponse({'detail': 'Password reset email sent.'})
 
 
 @csrf_exempt

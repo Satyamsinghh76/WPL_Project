@@ -29,9 +29,9 @@ export default function ForgotPassword() {
                 {sent ? (
                     <div className="text-center space-y-4">
                         <CheckCircle className="w-12 h-12 text-green-500 mx-auto" />
-                        <h2 className="text-2xl font-bold text-academic-900">Check your email</h2>
+                        <h2 className="text-2xl font-bold text-academic-900">Email sent</h2>
                         <p className="text-academic-600">
-                            If an account exists with <strong>{email}</strong>, we've sent a password reset link.
+                            A password reset link was sent to <strong>{email}</strong>.
                         </p>
                         <Link to="/login" className="btn btn-primary inline-block">Back to Login</Link>
                     </div>
