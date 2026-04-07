@@ -6,7 +6,6 @@ psycopg2-binary
 django-cors-headers
 gunicorn
 whitenoise
-resend
 
 python-dotenv>=1.0
 

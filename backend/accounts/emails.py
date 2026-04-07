@@ -1,22 +1,55 @@
-import resend
+import json
+import logging
+from email.utils import parseaddr
+from urllib import error, request
+
 from django.conf import settings
 
 
+logger = logging.getLogger(__name__)
+
+
 def _send_email(to_email, subject, text_body, html_body):
-    if not settings.RESEND_API_KEY:
+    if not settings.BREVO_API_KEY:
+        logger.error('BREVO_API_KEY is not configured; cannot send email to=%s subject=%s', to_email, subject)
         return False
 
-    resend.api_key = settings.RESEND_API_KEY
+    sender_name, sender_email = parseaddr(settings.DEFAULT_FROM_EMAIL)
+    if not sender_email:
+        logger.error('DEFAULT_FROM_EMAIL must include a valid email address for Brevo. Current value=%s', settings.DEFAULT_FROM_EMAIL)
+        return False
+
+    payload = {
+        'sender': {
+            'name': sender_name or 'Scholr',
+            'email': sender_email,
+        },
+        'to': [{'email': to_email}],
+        'subject': subject,
+        'htmlContent': html_body,
+        'textContent': text_body,
+    }
+
+    req = request.Request(
+        'https://api.brevo.com/v3/smtp/email',
+        data=json.dumps(payload).encode('utf-8'),
+        method='POST',
+        headers={
+            'accept': 'application/json',
+            'content-type': 'application/json',
+            'api-key': settings.BREVO_API_KEY,
+        },
+    )
+
     try:
-        response = resend.Emails.send({
-            'from': settings.DEFAULT_FROM_EMAIL,
-            'to': [to_email],
-            'subject': subject,
-            'text': text_body,
-            'html': html_body,
-        })
-        return bool(response)
+        with request.urlopen(req, timeout=12) as resp:
+            return 200 <= resp.status < 300
+    except error.HTTPError as exc:
+        body = exc.read().decode('utf-8', errors='ignore')
+        logger.error('Brevo email send HTTP %s to=%s subject=%s body=%s', exc.code, to_email, subject, body)
+        return False
     except Exception:
+        logger.exception('Brevo email send failed to=%s subject=%s from=%s', to_email, subject, settings.DEFAULT_FROM_EMAIL)
         return False
 
 

@@ -208,8 +208,8 @@ CACHES = {
 }
 
 # Email configuration
-RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
-DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'Scholr <onboarding@resend.dev>')
+BREVO_API_KEY = os.environ.get('BREVO_API_KEY', '')
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'Scholr <no-reply@example.com>')
 
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:5173')
 

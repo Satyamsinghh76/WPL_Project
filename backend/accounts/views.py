@@ -606,6 +606,7 @@ def send_verification(request):
 		token = EmailToken.create_for(actor, EmailToken.PURPOSE_VERIFY)
 		sent = send_verification_email(actor, token)
 		if not sent:
+			logger.error('Verification email send returned False for user_id=%s email=%s', actor.id, actor.email)
 			return JsonResponse({'detail': 'Email service could not send the verification email.'}, status=503)
 	except Exception:
 		logger.exception('Failed to send verification email for user_id=%s', actor.id)
@@ -671,6 +672,7 @@ def forgot_password(request):
 		token = EmailToken.create_for(user, EmailToken.PURPOSE_RESET, ttl_hours=1)
 		sent = send_password_reset_email(user, token)
 		if not sent:
+			logger.error('Password reset email send returned False for user_id=%s email=%s', user.id, user.email)
 			return JsonResponse({'detail': 'Password reset email could not be sent.'}, status=503)
 	except Exception:
 		logger.exception('Failed to send password reset email for user_id=%s', user.id)
