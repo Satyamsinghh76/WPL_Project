@@ -85,6 +85,13 @@ export const deletePost = (postId, authHeaders) =>
     headers: authHeaders,
   });
 
+export const setPostVisibility = (postId, is_hidden, authHeaders) =>
+  request(`/posts/${postId}/visibility/`, {
+    method: 'POST',
+    headers: authHeaders,
+    body: JSON.stringify({ is_hidden }),
+  });
+
 export const votePost = (postId, voteData, authHeaders) =>
   request(`/posts/${postId}/vote/`, {
     method: 'POST',

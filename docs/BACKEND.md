@@ -99,6 +99,10 @@ created_at (datetime)
 - **VERIFIED** — Can post, vote, report (upgraded from email verification)
 - **GENERAL** — Read-only (can view but not post/vote/report)
 
+**Admin authority note:**
+- `PlatformUser.ROLE_ADMIN` controls your application-level moderation and API permissions.
+- Django `is_superuser` controls Django admin site (`/admin/`) only and is separate from the app role model.
+
 ### Post
 ```python
 id (pk)
@@ -247,6 +251,47 @@ Headers: Authorization: Bearer {token}
 Response (200):
 {
   "detail": "Logged out successfully."
+}
+```
+
+#### POST /accounts/forgot-password/
+Send a password reset email.
+```json
+Request:
+{
+  "email": "alice@university.edu"
+}
+
+Response (200):
+{
+  "detail": "Password reset email sent."
+}
+
+Error (404):
+{
+  "detail": "No account found with this email."
+}
+
+Error (503):
+{
+  "detail": "Password reset email could not be sent."
+}
+```
+
+The 503 response is intentional and means the backend could not reach the configured mail provider (for example SMTP network unreachable or provider outage).
+
+#### POST /accounts/reset-password/
+Reset password using a valid reset token.
+```json
+Request:
+{
+  "token": "reset-token",
+  "password": "newStrongPassword123"
+}
+
+Response (200):
+{
+  "detail": "Password has been reset successfully."
 }
 ```
 

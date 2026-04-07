@@ -2,6 +2,7 @@ import json
 import urllib.request
 import urllib.error
 import logging
+from django.db import IntegrityError
 
 from django.conf import settings
 from django.http import JsonResponse
@@ -83,15 +84,34 @@ def _upsert_oauth_user(supabase_user):
 		username = f'{base_username}{counter}'
 		counter += 1
 
-	user = PlatformUser.objects.create(
-		username=username,
-		email=email,
-		email_verified=True,
-		full_name=full_name,
-		profile_picture=avatar_url,
-		supabase_id=sub,
-		role=PlatformUser.ROLE_VERIFIED,
-	)
+	try:
+		user = PlatformUser.objects.create(
+			username=username,
+			email=email,
+			email_verified=True,
+			full_name=full_name,
+			profile_picture=avatar_url,
+			supabase_id=sub,
+			role=PlatformUser.ROLE_VERIFIED,
+		)
+	except IntegrityError:
+		# Handle race conditions where another request created this email first.
+		existing = PlatformUser.objects.filter(email__iexact=email).first()
+		if not existing:
+			return None, JsonResponse({'detail': 'Account already exists for this email. Please log in.'}, status=400)
+		updates = []
+		if not existing.supabase_id:
+			existing.supabase_id = sub
+			updates.append('supabase_id')
+		if not existing.email_verified:
+			existing.email_verified = True
+			updates.append('email_verified')
+		if existing.role == PlatformUser.ROLE_GENERAL:
+			existing.role = PlatformUser.ROLE_VERIFIED
+			updates.append('role')
+		if updates:
+			existing.save(update_fields=updates)
+		user = existing
 
 	# Send welcome/confirmation email for new OAuth account
 	try:
@@ -201,20 +221,26 @@ def users(request):
 			return JsonResponse({'detail': 'Email is required.'}, status=400)
 		if PlatformUser.objects.filter(email__iexact=email).exists():
 			return JsonResponse(
-				{'detail': 'Email already exists. Use that account with email/password or Google/LinkedIn.'},
+				{'detail': 'Account already exists with this email. Please log in with the same email account.'},
 				status=400,
 			)
 
-		user = PlatformUser.objects.create(
-			username=payload['username'],
-			password_hash=make_password(payload['password']),
-			email=email,
-			email_verified=False,
-			full_name=payload['full_name'],
-			institution=payload.get('institution', ''),
-			bio=payload.get('bio', ''),
-			role=PlatformUser.ROLE_GENERAL,
-		)
+		try:
+			user = PlatformUser.objects.create(
+				username=payload['username'],
+				password_hash=make_password(payload['password']),
+				email=email,
+				email_verified=False,
+				full_name=payload['full_name'],
+				institution=payload.get('institution', ''),
+				bio=payload.get('bio', ''),
+				role=PlatformUser.ROLE_GENERAL,
+			)
+		except IntegrityError:
+			return JsonResponse(
+				{'detail': 'Account already exists with this email. Please log in with the same email account.'},
+				status=400,
+			)
 
 		# Send welcome email + verification email
 		send_welcome_email(user)

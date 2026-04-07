@@ -10,6 +10,14 @@ from posts.models import Post
 from .models import Comment, Conversation, ConversationMember, Message, Report, Vote
 
 
+def _can_access_hidden_posts(role):
+    return role in [
+        PlatformUser.ROLE_ADMIN,
+        PlatformUser.ROLE_DEVELOPER,
+        PlatformUser.ROLE_MODERATOR,
+    ]
+
+
 @csrf_exempt
 def vote_on_post(request, post_id):
     if request.method != 'POST':
@@ -28,7 +36,10 @@ def vote_on_post(request, post_id):
     if value not in [Vote.UPVOTE, Vote.DOWNVOTE]:
         return JsonResponse({'detail': 'value (1 or -1) is required.'}, status=400)
 
-    post = Post.objects.filter(id=post_id, is_deleted=False).first()
+    post_qs = Post.objects.filter(id=post_id, is_deleted=False)
+    if not _can_access_hidden_posts(user_role):
+        post_qs = post_qs.filter(is_hidden=False)
+    post = post_qs.first()
     if not post:
         return JsonResponse({'detail': 'Post not found.'}, status=404)
 
@@ -58,7 +69,10 @@ def report_post(request, post_id):
     if not reason:
         return JsonResponse({'detail': 'reason is required.'}, status=400)
 
-    post = Post.objects.filter(id=post_id, is_deleted=False).first()
+    post_qs = Post.objects.filter(id=post_id, is_deleted=False)
+    if not _can_access_hidden_posts(user_role):
+        post_qs = post_qs.filter(is_hidden=False)
+    post = post_qs.first()
     if not post:
         return JsonResponse({'detail': 'Post not found.'}, status=404)
 
@@ -153,7 +167,13 @@ def reports_collection(request):
 
 @csrf_exempt
 def comments_collection(request, post_id):
-    post = Post.objects.filter(id=post_id, is_deleted=False).first()
+    actor = get_authenticated_user(request)
+    actor_role = get_effective_role(request, actor)
+
+    post_qs = Post.objects.filter(id=post_id, is_deleted=False)
+    if not _can_access_hidden_posts(actor_role):
+        post_qs = post_qs.filter(is_hidden=False)
+    post = post_qs.first()
     if not post:
         return JsonResponse({'detail': 'Post not found.'}, status=404)
 
@@ -166,10 +186,8 @@ def comments_collection(request, post_id):
         return JsonResponse({'results': list(comments)})
 
     if request.method == 'POST':
-        actor = get_authenticated_user(request)
         if not actor:
             return JsonResponse({'detail': 'Authentication required.'}, status=401)
-        actor_role = get_effective_role(request, actor)
         if actor_role == PlatformUser.ROLE_GENERAL:
             return JsonResponse({'detail': 'General users cannot comment.'}, status=403)
 

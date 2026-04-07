@@ -28,6 +28,7 @@ class Post(models.Model):
 	content = models.TextField()
 	references = models.TextField(blank=True)
 	is_deleted = models.BooleanField(default=False, db_index=True)
+	is_hidden = models.BooleanField(default=False, db_index=True)
 	created_at = models.DateTimeField(auto_now_add=True, db_index=True)
 	updated_at = models.DateTimeField(auto_now=True)
 

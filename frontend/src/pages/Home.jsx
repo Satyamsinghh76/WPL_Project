@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, MessageSquare, ThumbsUp, ThumbsDown, Trash2, TrendingUp, Filter, Eye, FolderPlus } from 'lucide-react';
+import { Plus, MessageSquare, ThumbsUp, ThumbsDown, Trash2, TrendingUp, Filter, Eye, EyeOff, FolderPlus } from 'lucide-react';
 
 function formatTime(isoTime) {
     if (!isoTime) {
@@ -36,6 +36,7 @@ export default function Home({
     topics,
     isLoadingPosts,
     handleDelete,
+    handleToggleHidden,
     handlePostForm,
     handleVote,
     handleCreateTopic,
@@ -336,9 +337,18 @@ export default function Home({
                                 <div className="flex items-center space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                     {canModerate && (
                                         <button
+                                            onClick={() => handleToggleHidden(post.id, !post.is_hidden)}
+                                            className="p-2 rounded-lg hover:bg-amber-50 text-amber-700 transition-colors"
+                                            title={post.is_hidden ? 'Unhide post' : 'Hide post'}
+                                        >
+                                            {post.is_hidden ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                                        </button>
+                                    )}
+                                    {canModerate && (
+                                        <button
                                             onClick={() => handleDelete(post.id)}
                                             className="p-2 rounded-lg hover:bg-red-50 text-red-600 transition-colors"
-                                            title="Delete post"
+                                            title="Delete post permanently"
                                         >
                                             <Trash2 className="w-4 h-4" />
                                         </button>

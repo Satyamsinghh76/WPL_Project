@@ -31,6 +31,7 @@ def _post_to_dict(post, user_votes_by_post_id=None, vote_scores_by_post_id=None)
 		'author': post.author.username,
 		'topic': post.topic.name if post.topic else None,
 		'topic_id': post.topic_id,
+		'is_hidden': post.is_hidden,
 		'score': score,
 		'user_vote': user_vote,
 		'created_at': post.created_at.isoformat(),
@@ -45,6 +46,14 @@ def _is_privileged_role(role):
         PlatformUser.ROLE_MODERATOR,
         PlatformUser.ROLE_VERIFIED,
     }
+
+
+def _can_moderate_posts(role):
+	return role in {
+		PlatformUser.ROLE_ADMIN,
+		PlatformUser.ROLE_DEVELOPER,
+		PlatformUser.ROLE_MODERATOR,
+	}
 
 
 @csrf_exempt
@@ -106,6 +115,9 @@ def topics_collection(request):
 @csrf_exempt
 def posts_collection(request):
 	if request.method == 'GET':
+		actor = get_authenticated_user(request)
+		actor_role = get_effective_role(request, actor)
+		can_view_hidden = _can_moderate_posts(actor_role)
 		viewer_id = request.GET.get('viewer_id')
 		page_num = request.GET.get('page', 1)
 		sort_by = (request.GET.get('sort', 'new') or 'new').lower()  # 'new' or 'hot'
@@ -113,6 +125,8 @@ def posts_collection(request):
 		
 		# Build queryset with filters
 		queryset = Post.objects.filter(is_deleted=False).select_related('author', 'topic')
+		if not can_view_hidden:
+			queryset = queryset.filter(is_hidden=False)
 		
 		# Filter by topic if provided
 		if topic_id:
@@ -206,7 +220,14 @@ def posts_collection(request):
 
 @csrf_exempt
 def post_detail(request, post_id):
-	post = Post.objects.filter(id=post_id, is_deleted=False).select_related('author', 'topic').first()
+	actor = get_authenticated_user(request)
+	actor_role = get_effective_role(request, actor)
+	can_view_hidden = _can_moderate_posts(actor_role)
+
+	queryset = Post.objects.filter(id=post_id, is_deleted=False)
+	if not can_view_hidden:
+		queryset = queryset.filter(is_hidden=False)
+	post = queryset.select_related('author', 'topic').first()
 	if not post:
 		return JsonResponse({'detail': 'Post not found.'}, status=404)
 
@@ -250,19 +271,52 @@ def post_detail(request, post_id):
 		return JsonResponse(_post_to_dict(post, user_votes_by_post_id={post.id: user_vote} if user_vote else {}, vote_scores_by_post_id={post.id: vote_score}))
 
 	if request.method == 'DELETE':
-		actor = get_authenticated_user(request)
 		if not actor:
 			return JsonResponse({'detail': 'Authentication required.'}, status=401)
-		actor_role = get_effective_role(request, actor)
 		if actor.id != post.author_id and actor_role not in {
 			PlatformUser.ROLE_ADMIN,
 			PlatformUser.ROLE_DEVELOPER,
 			PlatformUser.ROLE_MODERATOR,
 		}:
 			return JsonResponse({'detail': 'You do not have permission to delete this post.'}, status=403)
+		post.delete()
+		return JsonResponse({'detail': 'Post deleted permanently.'})
 
-		post.is_deleted = True
-		post.save(update_fields=['is_deleted'])
-		return JsonResponse({'detail': 'Post deleted.'})
+	return JsonResponse({'detail': 'Method not allowed.'}, status=405)
+
+
+@csrf_exempt
+def post_visibility(request, post_id):
+	post = Post.objects.filter(id=post_id, is_deleted=False).select_related('author', 'topic').first()
+	if not post:
+		return JsonResponse({'detail': 'Post not found.'}, status=404)
+
+	actor = get_authenticated_user(request)
+	if not actor:
+		return JsonResponse({'detail': 'Authentication required.'}, status=401)
+	actor_role = get_effective_role(request, actor)
+	if not _can_moderate_posts(actor_role):
+		return JsonResponse({'detail': 'Only moderators, developers, or administrators can change visibility.'}, status=403)
+
+	if request.method == 'POST':
+		payload = parse_json_body(request)
+		if payload is None:
+			return JsonResponse({'detail': 'Invalid JSON payload.'}, status=400)
+
+		if 'is_hidden' not in payload:
+			return JsonResponse({'detail': 'is_hidden is required.'}, status=400)
+
+		post.is_hidden = bool(payload.get('is_hidden'))
+		post.save(update_fields=['is_hidden', 'updated_at'])
+
+		vote_score = Vote.objects.filter(post_id=post.id).aggregate(score=Sum('value'))['score'] or 0
+		user_vote = Vote.objects.filter(post_id=post.id, user_id=actor.id).values_list('value', flat=True).first()
+		return JsonResponse(
+			_post_to_dict(
+				post,
+				user_votes_by_post_id={post.id: user_vote} if user_vote else {},
+				vote_scores_by_post_id={post.id: vote_score},
+			)
+		)
 
 	return JsonResponse({'detail': 'Method not allowed.'}, status=405)

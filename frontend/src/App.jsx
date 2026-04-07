@@ -186,6 +186,23 @@ function App() {
         }
     };
 
+    const handleToggleHidden = async (id, isHidden) => {
+        if (!currentUser) {
+            return;
+        }
+
+        try {
+            const updated = await API.setPostVisibility(id, isHidden, authHeaders(true));
+            if (updated.is_hidden && !['Administrator', 'Developer', 'Moderator'].includes(role)) {
+                setPosts((prev) => prev.filter((post) => post.id !== id));
+                return;
+            }
+            setPosts((prev) => prev.map((post) => (post.id === id ? { ...post, ...updated } : post)));
+        } catch (error) {
+            alert('Unable to update post visibility.');
+        }
+    };
+
     const handleFilterChange = async ({ sort = 'new', topic_id = null }) => {
         setFeedSort(sort);
         setFeedTopicId(topic_id);
@@ -501,6 +518,7 @@ function App() {
                                         topics={topics}
                                         isLoadingPosts={isLoadingPosts}
                                         handleDelete={handleDelete}
+                                        handleToggleHidden={handleToggleHidden}
                                         handlePostForm={handlePostForm}
                                         handleVote={handleVote}
                                         handleCreateTopic={handleCreateTopic}

@@ -8,8 +8,7 @@ Scholar is a web platform for academic discussions, professional networking, and
 - **[Backend Setup & API](./BACKEND.md)** — REST endpoints, database, authentication
 - **[Frontend Guide](./FRONTEND.md)** — Component structure, state management, styling
 - **[Database Schema](./DATABASE.md)** — Data models, relationships, indices
-- **[Deployment & Optimization](./DEPLOYMENT.md)** — Render setup, cold-start fixes, performance
-- **[Development Workflow](./DEVELOPMENT.md)** — Local setup, testing, contributing
+- **[Optimization](./OPTIMIZATION.md)** — Build/runtime tuning and performance notes
 
 ## Project Structure
 
@@ -80,6 +79,8 @@ WPL/
 - `POST /accounts/oauth/callback/` — OAuth with Supabase token
 - `GET /accounts/me/` — Current user profile
 - `POST /accounts/logout/` — Invalidate token
+- `POST /accounts/forgot-password/` — Request reset email (returns 404 for missing user, 503 for delivery failure)
+- `POST /accounts/reset-password/` — Reset password with token
 
 ### Posts & Feed
 - `GET /posts/?sort=new|hot&topic_id=X&page=N` — Filtered feed (uses indices)
@@ -186,6 +187,22 @@ python manage.py migrate
 python manage.py createsuperuser
 ```
 
+Use this only if you need Django Admin site access (`/admin/`). It is separate from your app's `PlatformUser` role system.
+
+## Admin Strategy
+
+### PlatformUser Administrator (recommended as primary)
+- Governs in-app permissions and moderation flows used by your frontend.
+- Follows your existing role-switch and token auth model.
+- Safer for day-to-day operations because access is scoped to app endpoints.
+
+### Django Superuser (optional, operational)
+- Full unrestricted access to Django admin and database-backed models.
+- Useful for emergency fixes, data inspection, and migration-era operations.
+- Higher risk if used as daily admin path because it bypasses app-level role rules.
+
+Recommended setup: keep `PlatformUser` Administrator as the normal control plane, and keep one Django superuser only for break-glass maintenance.
+
 ## Troubleshooting
 
 | Issue | Solution |
@@ -193,11 +210,12 @@ python manage.py createsuperuser
 | Backend 403 on delete | Service role key missing/wrong. Set `SUPABASE_SERVICE_ROLE_KEY` env var |
 | Feed loads slow | Verify indices exist: `SELECT * FROM django_migrations WHERE app='posts'` |
 | OAuth not working | Check Supabase URL + anon key match between backend + frontend |
+| Forgot-password returns 503 | Mail provider/network is unreachable from host. API now correctly reports delivery failure; verify SMTP/API provider connectivity and credentials |
 | Cold start delays | Activate cron keep-alive at cron-job.org |
 
 ## Support & Contributing
 
-See [Development Workflow](./DEVELOPMENT.md) for contribution guidelines, testing, and working with git branches.
+See [Backend Setup & API](./BACKEND.md), [Frontend Guide](./FRONTEND.md), and [Architecture](./ARCHITECTURE.md) for implementation details.
 
 ---
 
