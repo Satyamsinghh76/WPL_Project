@@ -31,7 +31,7 @@ function Avatar({ src, name, size = 10 }) {
     );
 }
 
-export default function ChatWidget({ currentUser, authHeaders }) {
+export default function ChatWidget({ currentUser, authHeaders, onAuthExpired }) {
     const [isOpen, setIsOpen] = useState(false);
     const [tab, setTab] = useState('direct');
     const [conversations, setConversations] = useState([]);
@@ -45,40 +45,58 @@ export default function ChatWidget({ currentUser, authHeaders }) {
     const [groupName, setGroupName] = useState('');
     const [allUsers, setAllUsers] = useState([]);
     const [selectedMembers, setSelectedMembers] = useState([]);
+    const [authInvalid, setAuthInvalid] = useState(false);
     const messagesEndRef = useRef(null);
     const inputRef = useRef(null);
 
     const headers = useCallback(() => authHeaders(true), [authHeaders]);
 
+    const handleAuthError = useCallback((err) => {
+        const message = err?.message || '';
+        if (message.includes('Authentication required') || message.includes('401')) {
+            setAuthInvalid(true);
+            setUnreadTotal(0);
+            if (onAuthExpired) {
+                onAuthExpired();
+            }
+        }
+    }, [onAuthExpired]);
+
     const fetchConversations = useCallback(async () => {
-        if (!currentUser?.token) return;
+        if (!currentUser?.token || authInvalid) return;
         try {
             const data = await API.getConversations(headers());
             setConversations(data.results || []);
             const total = (data.results || []).reduce((sum, c) => sum + (c.unread_count || 0), 0);
             setUnreadTotal(total);
-        } catch { /* ignore */ }
-    }, [currentUser?.token, headers]);
+        } catch (err) {
+            handleAuthError(err);
+        }
+    }, [currentUser?.token, authInvalid, headers, handleAuthError]);
 
     const fetchTopicRooms = useCallback(async () => {
-        if (!currentUser?.token) return;
+        if (!currentUser?.token || authInvalid) return;
         try {
             const data = await API.getTopicRooms(headers());
             setTopicRooms(data.results || []);
-        } catch { /* ignore */ }
-    }, [currentUser?.token, headers]);
+        } catch (err) {
+            handleAuthError(err);
+        }
+    }, [currentUser?.token, authInvalid, headers, handleAuthError]);
 
     const fetchMessages = useCallback(async () => {
-        if (!activeConvo || !currentUser?.token) return;
+        if (!activeConvo || !currentUser?.token || authInvalid) return;
         try {
             const data = await API.getMessages(activeConvo.id, headers());
             setMessages(data.results || []);
-        } catch { /* ignore */ }
-    }, [activeConvo, currentUser?.token, headers]);
+        } catch (err) {
+            handleAuthError(err);
+        }
+    }, [activeConvo, currentUser?.token, authInvalid, headers, handleAuthError]);
 
     // Poll conversations
     useEffect(() => {
-        if (!currentUser?.token || !isOpen) return;
+        if (!currentUser?.token || !isOpen || authInvalid) return;
         fetchConversations();
         fetchTopicRooms();
         const interval = setInterval(() => {
@@ -86,21 +104,23 @@ export default function ChatWidget({ currentUser, authHeaders }) {
             if (tab === 'topic') fetchTopicRooms();
         }, POLL_INTERVAL);
         return () => clearInterval(interval);
-    }, [currentUser?.token, isOpen, tab, fetchConversations, fetchTopicRooms]);
+    }, [currentUser?.token, isOpen, tab, authInvalid, fetchConversations, fetchTopicRooms]);
 
     // Poll unread even when closed
     useEffect(() => {
-        if (!currentUser?.token) return;
+        if (!currentUser?.token || authInvalid) return;
         const fetchUnread = async () => {
             try {
                 const data = await API.getUnreadCount(headers());
                 setUnreadTotal(data.unread_count || 0);
-            } catch { /* ignore */ }
+            } catch (err) {
+                handleAuthError(err);
+            }
         };
         fetchUnread();
         const interval = setInterval(fetchUnread, POLL_INTERVAL);
         return () => clearInterval(interval);
-    }, [currentUser?.token, headers]);
+    }, [currentUser?.token, authInvalid, headers, handleAuthError]);
 
     // Poll messages
     useEffect(() => {

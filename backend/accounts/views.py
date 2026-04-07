@@ -94,7 +94,10 @@ def _upsert_oauth_user(supabase_user):
 	)
 
 	# Send welcome/confirmation email for new OAuth account
-	send_welcome_email(user, needs_verification=False)
+	try:
+		send_welcome_email(user, needs_verification=False)
+	except Exception:
+		logger.exception('Failed to send OAuth welcome email for user_id=%s', user.id)
 
 	return user, None
 
@@ -567,8 +570,11 @@ def forgot_password(request):
 	# Always return success to prevent email enumeration
 	user = PlatformUser.objects.filter(email__iexact=email, is_active=True).first()
 	if user:
-		token = EmailToken.create_for(user, EmailToken.PURPOSE_RESET, ttl_hours=1)
-		send_password_reset_email(user, token)
+		try:
+			token = EmailToken.create_for(user, EmailToken.PURPOSE_RESET, ttl_hours=1)
+			send_password_reset_email(user, token)
+		except Exception:
+			logger.exception('Failed to send password reset email for user_id=%s', user.id)
 
 	return JsonResponse({'detail': 'If that email exists, a reset link has been sent.'})
 

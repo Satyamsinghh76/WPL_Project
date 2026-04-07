@@ -59,6 +59,7 @@ function App() {
     const [theme, setTheme] = useState(() => localStorage.getItem(THEME_STORAGE_KEY) || 'light');
     const [feedSort, setFeedSort] = useState('new');
     const [feedTopicId, setFeedTopicId] = useState(null);
+    const [expandedTopicIds, setExpandedTopicIds] = useState({});
 
     const role = currentUser?.acting_role || currentUser?.role || 'General User';
     const isLoggedIn = Boolean(currentUser);
@@ -189,6 +190,13 @@ function App() {
         setFeedSort(sort);
         setFeedTopicId(topic_id);
         await fetchPosts(currentUser?.id, { sort, topic_id });
+    };
+
+    const toggleTopicExpanded = (topicId) => {
+        setExpandedTopicIds((prev) => ({
+            ...prev,
+            [topicId]: !prev[topicId],
+        }));
     };
 
     const handleVote = async (postId, value) => {
@@ -438,21 +446,27 @@ function App() {
                                     <h3 className="text-xs font-semibold text-academic-500 uppercase tracking-wider mb-3">Explore Topics</h3>
                                     <div className="space-y-2">
                                         {(parentTopicMap[0] || []).map((topic) => (
-                                            <div key={topic.id} className="group">
-                                                <button
-                                                    onClick={() => handleFilterChange({ sort: feedSort, topic_id: topic.id })}
-                                                    className="flex items-center justify-between w-full px-3 py-2 rounded-lg hover:bg-academic-100 text-academic-700 transition-colors"
-                                                >
-                                                    <div className="flex items-center space-x-2">
+                                            <div key={topic.id}>
+                                                <div className="flex items-center justify-between w-full px-3 py-2 rounded-lg hover:bg-academic-100 text-academic-700 transition-colors">
+                                                    <button
+                                                        onClick={() => handleFilterChange({ sort: feedSort, topic_id: topic.id })}
+                                                        className="flex items-center space-x-2 flex-1 text-left"
+                                                    >
                                                         <FileText className="w-4 h-4" />
                                                         <span className="font-medium">{topic.name}</span>
-                                                    </div>
+                                                    </button>
                                                     {(parentTopicMap[topic.id] || []).length > 0 && (
-                                                        <ChevronDown className="w-4 h-4 transform group-hover:rotate-180 transition-transform" />
+                                                        <button
+                                                            onClick={() => toggleTopicExpanded(topic.id)}
+                                                            className="ml-2 p-1 rounded hover:bg-academic-200"
+                                                            title={expandedTopicIds[topic.id] ? 'Collapse subtopics' : 'Expand subtopics'}
+                                                        >
+                                                            <ChevronDown className={`w-4 h-4 transition-transform ${expandedTopicIds[topic.id] ? 'rotate-180' : ''}`} />
+                                                        </button>
                                                     )}
-                                                </button>
-                                                {(parentTopicMap[topic.id] || []).length > 0 && (
-                                                    <div className="ml-6 mt-1 space-y-1 hidden group-hover:block">
+                                                </div>
+                                                {(parentTopicMap[topic.id] || []).length > 0 && expandedTopicIds[topic.id] && (
+                                                    <div className="ml-6 mt-1 space-y-1">
                                                         {(parentTopicMap[topic.id] || []).map((sub) => (
                                                             <button
                                                                 key={sub.id}
@@ -514,7 +528,7 @@ function App() {
 
                 {sidebarOpen && <div className="fixed inset-0 bg-black bg-opacity-50 z-30 lg:hidden" onClick={() => setSidebarOpen(false)} />}
 
-                {isLoggedIn && <ChatWidget currentUser={currentUser} authHeaders={authHeaders} />}
+                {isLoggedIn && <ChatWidget currentUser={currentUser} authHeaders={authHeaders} onAuthExpired={handleLogout} />}
             </div>
         </Router>
     );
