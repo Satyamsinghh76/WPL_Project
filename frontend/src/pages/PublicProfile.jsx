@@ -85,18 +85,9 @@ export default function PublicProfile({ posts, currentUser }) {
     const canReport = Boolean(currentUser && (currentUser.acting_role || currentUser.role) !== 'General User');
     const canMessage = Boolean(currentUser && currentUser.id !== user?.id);
 
-    const handleMessage = async () => {
+    const handleMessage = () => {
         if (!canMessage) return;
-        try {
-            await API.startConversation(user.id, {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${currentUser.token}`,
-            });
-            // The ChatWidget will pick up the new conversation on next poll
-            alert('Conversation started! Check the Messaging widget at the bottom right.');
-        } catch (err) {
-            alert(err?.message || 'Failed to start conversation.');
-        }
+        navigate(`/messages?userId=${user.id}`);
     };
 
     const handleReportUser = async (e) => {

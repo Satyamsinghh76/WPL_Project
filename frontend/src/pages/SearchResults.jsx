@@ -63,19 +63,19 @@ export default function SearchResults({ currentUser, onTopicSelect }) {
 
     return (
         <div className="max-w-4xl mx-auto space-y-6">
-            <form onSubmit={handleSearchSubmit} className="sticky top-16 z-30 py-2 md:hidden">
-                <div className="relative rounded-xl border border-academic-200 bg-academic-100/90 dark:bg-slate-800/80">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-academic-400" />
+            <form onSubmit={handleSearchSubmit} className="sticky top-16 z-30 py-2 md:hidden bg-academic-50">
+                <div className="relative rounded-xl border border-academic-300 bg-white shadow-sm ring-1 ring-white">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-academic-500" />
                     <input
                         type="text"
                         value={draftQuery}
                         onChange={(e) => setDraftQuery(e.target.value)}
                         placeholder="Search discussions, topics, users..."
-                        className="w-full pl-10 pr-20 py-2.5 rounded-xl bg-transparent text-academic-800 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        className="w-full pl-10 pr-20 py-2.5 rounded-xl bg-white text-academic-900 placeholder:text-academic-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
                     />
                     <button
                         type="submit"
-                        className="absolute right-1.5 top-1/2 -translate-y-1/2 px-3 py-1.5 text-xs font-medium rounded-lg bg-primary-600 text-white"
+                        className="absolute right-1.5 top-1/2 -translate-y-1/2 px-3 py-1.5 text-xs font-semibold rounded-lg bg-primary-600 text-white shadow-sm"
                     >
                         Search
                     </button>

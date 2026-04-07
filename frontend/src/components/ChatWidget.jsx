@@ -1,13 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { MessageSquare, X, Send, ArrowLeft, User, Users, Hash, Plus } from 'lucide-react';
+import { MessageSquare, X, Send, ArrowLeft, User } from 'lucide-react';
 import * as API from '../api';
 
 const POLL_INTERVAL = 4000;
-const TABS = [
-    { key: 'direct', label: 'DMs', icon: MessageSquare },
-    { key: 'group', label: 'Groups', icon: Users },
-    { key: 'topic', label: 'Topics', icon: Hash },
-];
 
 function timeAgo(dateStr) {
     if (!dateStr) return '';
@@ -31,20 +26,23 @@ function Avatar({ src, name, size = 10 }) {
     );
 }
 
-export default function ChatWidget({ currentUser, authHeaders, onAuthExpired, pageMode = false, forceOpen = false, hideLauncher = false }) {
+export default function ChatWidget({
+    currentUser,
+    authHeaders,
+    onAuthExpired,
+    pageMode = false,
+    forceOpen = false,
+    hideLauncher = false,
+    initialConversation = null,
+    initialRecipientId = null,
+}) {
     const [isOpen, setIsOpen] = useState(Boolean(forceOpen));
-    const [tab, setTab] = useState('direct');
     const [conversations, setConversations] = useState([]);
-    const [topicRooms, setTopicRooms] = useState([]);
     const [activeConvo, setActiveConvo] = useState(null);
     const [messages, setMessages] = useState([]);
     const [newMessage, setNewMessage] = useState('');
     const [unreadTotal, setUnreadTotal] = useState(0);
     const [sending, setSending] = useState(false);
-    const [showNewGroup, setShowNewGroup] = useState(false);
-    const [groupName, setGroupName] = useState('');
-    const [allUsers, setAllUsers] = useState([]);
-    const [selectedMembers, setSelectedMembers] = useState([]);
     const [authInvalid, setAuthInvalid] = useState(false);
     const messagesEndRef = useRef(null);
     const inputRef = useRef(null);
@@ -74,16 +72,6 @@ export default function ChatWidget({ currentUser, authHeaders, onAuthExpired, pa
         }
     }, [currentUser?.token, authInvalid, headers, handleAuthError]);
 
-    const fetchTopicRooms = useCallback(async () => {
-        if (!currentUser?.token || authInvalid) return;
-        try {
-            const data = await API.getTopicRooms(headers());
-            setTopicRooms(data.results || []);
-        } catch (err) {
-            handleAuthError(err);
-        }
-    }, [currentUser?.token, authInvalid, headers, handleAuthError]);
-
     const fetchMessages = useCallback(async () => {
         if (!activeConvo || !currentUser?.token || authInvalid) return;
         try {
@@ -98,13 +86,11 @@ export default function ChatWidget({ currentUser, authHeaders, onAuthExpired, pa
     useEffect(() => {
         if (!currentUser?.token || (!isOpen && !forceOpen) || authInvalid) return;
         fetchConversations();
-        fetchTopicRooms();
         const interval = setInterval(() => {
             fetchConversations();
-            if (tab === 'topic') fetchTopicRooms();
         }, POLL_INTERVAL);
         return () => clearInterval(interval);
-    }, [currentUser?.token, isOpen, forceOpen, tab, authInvalid, fetchConversations, fetchTopicRooms]);
+    }, [currentUser?.token, isOpen, forceOpen, authInvalid, fetchConversations]);
 
     // Poll unread even when closed
     useEffect(() => {
@@ -149,6 +135,25 @@ export default function ChatWidget({ currentUser, authHeaders, onAuthExpired, pa
         return () => window.removeEventListener('scholr:open-chat', handleOpenChat);
     }, [forceOpen]);
 
+    useEffect(() => {
+        if (!initialConversation?.id) return;
+        setIsOpen(true);
+        setActiveConvo(initialConversation);
+        setMessages([]);
+    }, [initialConversation]);
+
+    useEffect(() => {
+        if (!initialRecipientId || activeConvo) return;
+        const targetId = Number(initialRecipientId);
+        if (!Number.isFinite(targetId)) return;
+        const convo = conversations.find((item) => item?.conv_type === 'direct' && Number(item?.other_user?.id) === targetId);
+        if (convo) {
+            setIsOpen(true);
+            setActiveConvo(convo);
+            setMessages([]);
+        }
+    }, [initialRecipientId, activeConvo, conversations]);
+
     const handleSend = async (e) => {
         e.preventDefault();
         const content = newMessage.trim();
@@ -174,44 +179,12 @@ export default function ChatWidget({ currentUser, authHeaders, onAuthExpired, pa
         fetchConversations();
     };
 
-    const handleJoinTopic = async (topicId) => {
-        try {
-            const convo = await API.joinTopicRoom(topicId, headers());
-            setActiveConvo(convo);
-            setMessages([]);
-            fetchTopicRooms();
-        } catch { /* ignore */ }
-    };
-
-    const handleCreateGroup = async (e) => {
-        e.preventDefault();
-        if (!groupName.trim() || selectedMembers.length === 0) return;
-        try {
-            const convo = await API.createGroupChat(groupName.trim(), selectedMembers, headers());
-            setShowNewGroup(false);
-            setGroupName('');
-            setSelectedMembers([]);
-            setActiveConvo(convo);
-            setMessages([]);
-            fetchConversations();
-        } catch { /* ignore */ }
-    };
-
-    const loadUsers = async () => {
-        try {
-            const data = await API.getChatUsers(headers());
-            setAllUsers(data.results || []);
-        } catch { /* ignore */ }
-    };
-
-    const filteredConvos = conversations.filter((c) => c.conv_type === tab);
+    const filteredConvos = conversations.filter((c) => c.conv_type === 'direct');
 
     if (!currentUser) return null;
 
     const convoTitle = activeConvo
-        ? activeConvo.conv_type === 'direct'
-            ? activeConvo.other_user?.full_name || activeConvo.other_user?.username || 'Chat'
-            : activeConvo.name || 'Chat'
+        ? activeConvo.other_user?.full_name || activeConvo.other_user?.username || 'Chat'
         : '';
 
     const convoAvatar = activeConvo?.conv_type === 'direct' ? activeConvo.other_user?.profile_picture : null;
@@ -232,18 +205,9 @@ export default function ChatWidget({ currentUser, authHeaders, onAuthExpired, pa
                                 <button onClick={backToList} className="p-1 hover:bg-white/20 rounded">
                                     <ArrowLeft className="w-4 h-4" />
                                 </button>
-                                {activeConvo.conv_type === 'direct' ? (
-                                    <Avatar src={convoAvatar} name={convoTitle} size={7} />
-                                ) : activeConvo.conv_type === 'topic' ? (
-                                    <Hash className="w-5 h-5" />
-                                ) : (
-                                    <Users className="w-5 h-5" />
-                                )}
+                                <Avatar src={convoAvatar} name={convoTitle} size={7} />
                                 <div className="flex-1 min-w-0">
                                     <div className="text-sm font-medium truncate">{convoTitle}</div>
-                                    {activeConvo.conv_type !== 'direct' && (
-                                        <div className="text-[10px] text-primary-200">{activeConvo.member_count} members</div>
-                                    )}
                                 </div>
                                 <button onClick={() => setIsOpen(false)} className="p-1 hover:bg-white/20 rounded md:hidden" title="Close messages">
                                     <X className="w-4 h-4" />
@@ -259,17 +223,11 @@ export default function ChatWidget({ currentUser, authHeaders, onAuthExpired, pa
                                     const isMine = msg.sender_id === currentUser.id;
                                     return (
                                         <div key={msg.id} className={`flex ${isMine ? 'justify-end' : 'justify-start'} gap-1.5`}>
-                                            {!isMine && activeConvo.conv_type !== 'direct' && (
-                                                <Avatar src={msg.sender_picture} name={msg.sender_username} size={6} />
-                                            )}
                                             <div className={`max-w-[75%] px-3 py-2 rounded-2xl text-sm ${
                                                 isMine
                                                     ? 'bg-primary-600 text-white rounded-br-md'
                                                     : 'bg-white text-academic-800 border border-academic-200 rounded-bl-md'
                                             }`}>
-                                                {!isMine && activeConvo.conv_type !== 'direct' && (
-                                                    <div className="text-[10px] font-semibold mb-0.5 text-primary-600">{msg.sender_username}</div>
-                                                )}
                                                 <div className="break-words">{msg.content}</div>
                                                 <div className={`text-[10px] mt-1 ${isMine ? 'text-primary-200' : 'text-academic-400'}`}>
                                                     {timeAgo(msg.created_at)}
@@ -297,172 +255,55 @@ export default function ChatWidget({ currentUser, authHeaders, onAuthExpired, pa
                                 </button>
                             </form>
                         </>
-                    ) : showNewGroup ? (
-                        /* New Group Form */
-                        <>
-                            <div className="flex items-center justify-between px-4 py-2.5 bg-gradient-to-r from-primary-600 to-primary-700 text-white flex-shrink-0">
-                                <button onClick={() => setShowNewGroup(false)} className="p-1 hover:bg-white/20 rounded">
-                                    <ArrowLeft className="w-4 h-4" />
-                                </button>
-                                <span className="font-semibold text-sm">New Group Chat</span>
-                                <button onClick={() => setIsOpen(false)} className="p-1 hover:bg-white/20 rounded md:hidden" title="Close messages">
-                                    <X className="w-4 h-4" />
-                                </button>
-                            </div>
-                            <form onSubmit={handleCreateGroup} className="flex-1 overflow-y-auto p-4 space-y-3">
-                                <input
-                                    type="text"
-                                    value={groupName}
-                                    onChange={(e) => setGroupName(e.target.value)}
-                                    placeholder="Group name"
-                                    className="w-full text-sm px-3 py-2 border border-academic-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary-500"
-                                    required
-                                />
-                                <div className="text-xs font-semibold text-academic-500 uppercase">Select members</div>
-                                <div className="space-y-1 max-h-52 overflow-y-auto">
-                                    {allUsers.map((u) => (
-                                        <label key={u.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-academic-50 cursor-pointer text-sm">
-                                            <input
-                                                type="checkbox"
-                                                checked={selectedMembers.includes(u.id)}
-                                                onChange={(e) => {
-                                                    setSelectedMembers((prev) =>
-                                                        e.target.checked ? [...prev, u.id] : prev.filter((id) => id !== u.id)
-                                                    );
-                                                }}
-                                                className="rounded"
-                                            />
-                                            <span className="text-academic-800">{u.full_name || u.username}</span>
-                                            <span className="text-academic-400 text-xs">@{u.username}</span>
-                                        </label>
-                                    ))}
-                                    {allUsers.length === 0 && <div className="text-sm text-academic-400 text-center py-4">Loading users...</div>}
-                                </div>
-                                <button type="submit" disabled={!groupName.trim() || selectedMembers.length === 0}
-                                    className="btn btn-primary w-full text-sm">
-                                    Create Group
-                                </button>
-                            </form>
-                        </>
                     ) : (
-                        /* Conversations List with Tabs */
+                        /* Conversations List */
                         <>
-                            {/* Tabs */}
-                            <div className="relative flex border-b border-academic-200 flex-shrink-0">
-                                {TABS.map((t) => {
-                                    const Icon = t.icon;
-                                    const count = t.key === 'topic' ? 0 :
-                                        conversations.filter((c) => c.conv_type === t.key).reduce((s, c) => s + (c.unread_count || 0), 0);
-                                    return (
-                                        <button
-                                            key={t.key}
-                                            onClick={() => setTab(t.key)}
-                                            className={`flex-1 flex items-center justify-center gap-2 py-3.5 text-sm font-medium transition-colors ${
-                                                tab === t.key
-                                                    ? 'text-primary-600 border-b-2 border-primary-600'
-                                                    : 'text-academic-500 hover:text-academic-700'
-                                            }`}
-                                        >
-                                            <Icon className="w-3.5 h-3.5" />
-                                            {t.label}
-                                            {count > 0 && (
-                                                <span className="w-4 h-4 rounded-full bg-red-500 text-white text-[9px] flex items-center justify-center font-bold">
-                                                    {count}
-                                                </span>
-                                            )}
-                                        </button>
-                                    );
-                                })}
-                                {tab === 'group' && (
-                                    <button
-                                        onClick={() => {
-                                            setShowNewGroup(true);
-                                            loadUsers();
-                                        }}
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-md text-academic-600 hover:bg-academic-100"
-                                        title="New group"
-                                    >
-                                        <Plus className="w-4 h-4" />
-                                    </button>
-                                )}
+                            <div className="flex items-center gap-2 px-4 py-3 border-b border-academic-200 flex-shrink-0">
+                                <MessageSquare className="w-4 h-4 text-primary-600" />
+                                <span className="text-sm font-semibold text-academic-800">Direct Messages</span>
                             </div>
 
                             <div className="flex-1 overflow-y-auto">
-                                {tab === 'topic' ? (
-                                    /* Topic Rooms */
-                                    topicRooms.length === 0 ? (
-                                        <div className="text-center text-sm text-academic-400 mt-12">No topic rooms yet.</div>
-                                    ) : (
-                                        topicRooms.map((room) => (
+                                {filteredConvos.length === 0 ? (
+                                    <div className="text-center text-sm text-academic-400 mt-12">
+                                        No conversations yet.\nVisit a profile to start chatting.
+                                    </div>
+                                ) : (
+                                    filteredConvos.map((convo) => {
+                                        const displayName = convo.other_user?.full_name || convo.other_user?.username || 'Unknown';
+                                        const pic = convo.other_user?.profile_picture;
+                                        return (
                                             <button
-                                                key={room.id}
-                                                onClick={() => room.joined ? openChat({ id: room.id, conv_type: 'topic', name: room.topic_name || room.name, member_count: room.member_count }) : handleJoinTopic(room.topic_id)}
+                                                key={convo.id}
+                                                onClick={() => openChat(convo)}
                                                 className="w-full flex items-center gap-3 px-4 py-3 hover:bg-academic-50 transition-colors text-left border-b border-academic-100"
                                             >
-                                                <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center flex-shrink-0">
-                                                    <Hash className="w-5 h-5 text-primary-600" />
-                                                </div>
+                                                <Avatar src={pic} name={displayName} size={10} />
                                                 <div className="flex-1 min-w-0">
-                                                    <div className="text-sm font-medium text-academic-800 truncate">{room.topic_name || room.name}</div>
-                                                    <div className="text-xs text-academic-500">{room.member_count} members</div>
-                                                </div>
-                                                {!room.joined && (
-                                                    <span className="text-xs text-primary-600 font-medium px-2 py-1 rounded bg-primary-50">Join</span>
-                                                )}
-                                            </button>
-                                        ))
-                                    )
-                                ) : (
-                                    /* DMs and Groups */
-                                    filteredConvos.length === 0 ? (
-                                        <div className="text-center text-sm text-academic-400 mt-12">
-                                            {tab === 'direct' ? 'No conversations yet.\nVisit a profile to start chatting.' : 'No group chats yet.\nClick + to create one.'}
-                                        </div>
-                                    ) : (
-                                        filteredConvos.map((convo) => {
-                                            const displayName = convo.conv_type === 'direct'
-                                                ? (convo.other_user?.full_name || convo.other_user?.username || 'Unknown')
-                                                : convo.name;
-                                            const pic = convo.conv_type === 'direct' ? convo.other_user?.profile_picture : null;
-                                            return (
-                                                <button
-                                                    key={convo.id}
-                                                    onClick={() => openChat(convo)}
-                                                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-academic-50 transition-colors text-left border-b border-academic-100"
-                                                >
-                                                    {convo.conv_type === 'direct' ? (
-                                                        <Avatar src={pic} name={displayName} size={10} />
-                                                    ) : (
-                                                        <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0">
-                                                            <Users className="w-5 h-5 text-purple-600" />
-                                                        </div>
-                                                    )}
-                                                    <div className="flex-1 min-w-0">
-                                                        <div className="flex items-center justify-between">
-                                                            <span className={`text-sm truncate ${convo.unread_count > 0 ? 'font-bold text-academic-900' : 'font-medium text-academic-700'}`}>
-                                                                {displayName}
-                                                            </span>
-                                                            <span className="text-[10px] text-academic-400 flex-shrink-0 ml-2">
-                                                                {timeAgo(convo.last_message?.created_at)}
-                                                            </span>
-                                                        </div>
-                                                        <div className="flex items-center justify-between">
-                                                            <p className={`text-xs truncate ${convo.unread_count > 0 ? 'font-semibold text-academic-700' : 'text-academic-500'}`}>
-                                                                {convo.last_message
-                                                                    ? (convo.last_message.sender_id === currentUser.id ? 'You: ' : '') + convo.last_message.content
-                                                                    : 'No messages yet'}
-                                                            </p>
-                                                            {convo.unread_count > 0 && (
-                                                                <span className="ml-2 flex-shrink-0 w-5 h-5 rounded-full bg-primary-600 text-white text-[10px] flex items-center justify-center font-bold">
-                                                                    {convo.unread_count}
-                                                                </span>
-                                                            )}
-                                                        </div>
+                                                    <div className="flex items-center justify-between">
+                                                        <span className={`text-sm truncate ${convo.unread_count > 0 ? 'font-bold text-academic-900' : 'font-medium text-academic-700'}`}>
+                                                            {displayName}
+                                                        </span>
+                                                        <span className="text-[10px] text-academic-400 flex-shrink-0 ml-2">
+                                                            {timeAgo(convo.last_message?.created_at)}
+                                                        </span>
                                                     </div>
-                                                </button>
-                                            );
-                                        })
-                                    )
+                                                    <div className="flex items-center justify-between">
+                                                        <p className={`text-xs truncate ${convo.unread_count > 0 ? 'font-semibold text-academic-700' : 'text-academic-500'}`}>
+                                                            {convo.last_message
+                                                                ? (convo.last_message.sender_id === currentUser.id ? 'You: ' : '') + convo.last_message.content
+                                                                : 'No messages yet'}
+                                                        </p>
+                                                        {convo.unread_count > 0 && (
+                                                            <span className="ml-2 flex-shrink-0 w-5 h-5 rounded-full bg-primary-600 text-white text-[10px] flex items-center justify-center font-bold">
+                                                                {convo.unread_count}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </button>
+                                        );
+                                    })
                                 )}
                             </div>
                         </>
