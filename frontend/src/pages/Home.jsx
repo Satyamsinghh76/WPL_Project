@@ -292,11 +292,11 @@ export default function Home({
                         <p className="text-academic-600">Try creating a topic or publish the first discussion.</p>
                     </div>
                 ) : (
-                    <div className="h-[calc(100vh-17rem)] sm:h-[calc(100vh-15rem)] overflow-y-auto snap-y snap-mandatory rounded-2xl">
+                    <div className="snap-y snap-mandatory space-y-4">
                         {posts.map((post) => (
                             <article
                                 key={post.id}
-                                className="snap-start min-h-[calc(100vh-17rem)] sm:min-h-[calc(100vh-15rem)] rounded-2xl border border-academic-200 bg-white px-4 py-5 sm:px-8 sm:py-8 mb-4 flex flex-col justify-between shadow-sm"
+                                className="snap-start min-h-[78vh] rounded-2xl border border-academic-200 bg-white px-4 py-5 sm:px-8 sm:py-8 flex flex-col justify-between shadow-sm"
                             >
                                 <div className="space-y-5 sm:space-y-6">
                                     <div className="flex items-center justify-between text-xs text-academic-500">
@@ -306,14 +306,21 @@ export default function Home({
 
                                     <Link
                                         to={`/post/${post.id}`}
-                                        className="block text-xl sm:text-3xl font-semibold leading-snug text-academic-900 hover:text-primary-700 transition-colors"
+                                        className="block text-base sm:text-xl font-semibold leading-relaxed text-academic-900 hover:text-primary-700 transition-colors line-clamp-8"
                                     >
                                         {post.content || post.title}
                                     </Link>
 
                                     {post.content && post.title && (
-                                        <p className="text-sm sm:text-base text-academic-600 line-clamp-3">{post.title}</p>
+                                        <p className="text-xs sm:text-sm text-academic-600 line-clamp-2">{post.title}</p>
                                     )}
+
+                                    <Link
+                                        to={`/post/${post.id}`}
+                                        className="inline-block text-sm text-primary-700 hover:text-primary-800 font-medium"
+                                    >
+                                        Read full post...
+                                    </Link>
                                 </div>
 
                                 <div className="mt-6 border-t border-academic-100 pt-4 flex items-end justify-between gap-3">

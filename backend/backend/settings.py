@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/4.2/ref/settings/
 
 from pathlib import Path
 import os, dj_database_url
+from urllib.parse import urlsplit
 from dotenv import load_dotenv
 
 # Load environment variables from .env file (local development)
@@ -142,7 +143,17 @@ else:
 #     "https://your-app.vercel.app",  # update after Vercel deploy
 # ]
 
-_frontend_url = os.environ.get("FRONTEND_URL", "").strip()
+def _as_origin(value):
+    value = (value or '').strip()
+    if not value:
+        return ''
+    parsed = urlsplit(value)
+    if parsed.scheme and parsed.netloc:
+        return f'{parsed.scheme}://{parsed.netloc}'
+    return value.rstrip('/')
+
+
+_frontend_url = _as_origin(os.environ.get("FRONTEND_URL", ""))
 _default_cors_origins = [
 	_frontend_url,                         # production (Vercel from env)
 	"https://scholr-beryl.vercel.app",    # production fallback
@@ -211,7 +222,7 @@ CACHES = {
 BREVO_API_KEY = os.environ.get('BREVO_API_KEY', '')
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'Scholr <no-reply@example.com>')
 
-FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:5173')
+FRONTEND_URL = _as_origin(os.environ.get('FRONTEND_URL', '')) or 'http://localhost:5173'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
