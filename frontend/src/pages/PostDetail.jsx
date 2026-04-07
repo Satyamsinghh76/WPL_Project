@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, ThumbsUp, ThumbsDown, User, Calendar, FileText, Trash2, Flag } from 'lucide-react';
+import { Link, useParams } from 'react-router-dom';
+import { ArrowLeft, Calendar, FileText, Flag, ThumbsDown, ThumbsUp, Trash2, User } from 'lucide-react';
 import * as API from '../api';
 
 function formatDateTime(isoTime) {
@@ -10,15 +10,24 @@ function formatDateTime(isoTime) {
     return new Date(isoTime).toLocaleString();
 }
 
-export default function PostDetail({ posts, currentUser, onVote }) {
+export default function PostDetail({ posts, currentUser, onVote, onCommentVote }) {
     const { id } = useParams();
     const post = posts.find((item) => item.id === Number(id));
     const [comments, setComments] = useState([]);
     const [commentText, setCommentText] = useState('');
     const [isLoadingComments, setIsLoadingComments] = useState(false);
+    const [relatedPosts, setRelatedPosts] = useState([]);
     const [showReportForm, setShowReportForm] = useState(false);
     const [reportReason, setReportReason] = useState('');
     const [reportMessage, setReportMessage] = useState('');
+
+    const sortComments = (items) => [...items].sort((left, right) => {
+        const scoreDelta = (right.score || 0) - (left.score || 0);
+        if (scoreDelta !== 0) {
+            return scoreDelta;
+        }
+        return new Date(left.created_at).getTime() - new Date(right.created_at).getTime();
+    });
 
     const authHeaders = (hasJson = false) => {
         const headers = {};
@@ -37,20 +46,35 @@ export default function PostDetail({ posts, currentUser, onVote }) {
         if (!post) {
             return;
         }
+
         setIsLoadingComments(true);
         try {
-            const data = await API.fetchComments(post.id);
-            setComments(data.results || []);
+            const data = await API.fetchComments(post.id, currentUser?.id);
+            setComments(sortComments(data.results || []));
         } catch {
-            return;
+            setComments([]);
         } finally {
             setIsLoadingComments(false);
         }
     };
 
+    const loadRelatedPosts = async () => {
+        if (!post) {
+            return;
+        }
+
+        try {
+            const data = await API.fetchRelatedPosts(post.id, { userId: currentUser?.id, limit: 3 });
+            setRelatedPosts(data.results || []);
+        } catch {
+            setRelatedPosts([]);
+        }
+    };
+
     useEffect(() => {
         loadComments();
-    }, [post?.id]);
+        loadRelatedPosts();
+    }, [post?.id, currentUser?.id]);
 
     const handleAddComment = async (e) => {
         e.preventDefault();
@@ -64,10 +88,33 @@ export default function PostDetail({ posts, currentUser, onVote }) {
 
         try {
             const data = await API.createComment(post.id, { content: commentText.trim() }, authHeaders(true));
-            setComments((prev) => [...prev, data]);
+            setComments((prev) => sortComments([...prev, data]));
             setCommentText('');
-        } catch (error) {
+        } catch {
             alert('Unable to add comment.');
+        }
+    };
+
+    const handleCommentVote = async (commentId, value) => {
+        if (!currentUser) {
+            alert('Please log in to vote.');
+            return;
+        }
+
+        try {
+            const voteComment = onCommentVote || (async (commentIdToVote, voteValue) => API.voteComment(commentIdToVote, { value: voteValue }, authHeaders(true)));
+            const data = await voteComment(commentId, value);
+            if (!data) {
+                return;
+            }
+
+            setComments((prev) => sortComments(prev.map((comment) => (
+                comment.id === commentId
+                    ? { ...comment, score: data.score, user_vote: data.user_vote }
+                    : comment
+            ))));
+        } catch (error) {
+            alert(error?.message || 'Unable to vote on this comment.');
         }
     };
 
@@ -75,7 +122,7 @@ export default function PostDetail({ posts, currentUser, onVote }) {
         try {
             await API.deleteComment(commentId, authHeaders());
             setComments((prev) => prev.filter((comment) => comment.id !== commentId));
-        } catch (error) {
+        } catch {
             alert('Unable to delete comment.');
         }
     };
@@ -119,6 +166,8 @@ export default function PostDetail({ posts, currentUser, onVote }) {
         );
     }
 
+    const authorName = post.author_username || post.author;
+
     return (
         <div className="max-w-4xl mx-auto space-y-6">
             <Link to="/" className="inline-flex items-center space-x-2 text-academic-600 hover:text-academic-900 transition-colors">
@@ -139,12 +188,12 @@ export default function PostDetail({ posts, currentUser, onVote }) {
                                 <h1 className="text-3xl font-bold text-academic-900 mb-4">{post.title}</h1>
 
                                 <div className="flex items-center space-x-4">
-                                    <Link to={`/profile/${post.author}`} className="flex items-center space-x-2 hover:opacity-80 transition-opacity">
+                                    <Link to={`/profile/${authorName}`} className="flex items-center space-x-2 hover:opacity-80 transition-opacity">
                                         <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center">
                                             <User className="w-5 h-5 text-primary-600" />
                                         </div>
                                         <div>
-                                            <div className="font-medium text-academic-900 hover:text-primary-600 hover:underline">@{post.author}</div>
+                                            <div className="font-medium text-academic-900 hover:text-primary-600 hover:underline">@{authorName}</div>
                                             <div className="text-sm text-academic-500">Contributor</div>
                                         </div>
                                     </Link>
@@ -171,11 +220,12 @@ export default function PostDetail({ posts, currentUser, onVote }) {
                     )}
 
                     <div className="border-t border-academic-200 pt-6">
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-center justify-between gap-4">
                             <div className="flex items-center space-x-2">
                                 <button
                                     className={`flex items-center space-x-1 p-2 rounded-lg hover:bg-academic-100 transition-colors ${post.user_vote === 1 ? 'text-green-600' : ''}`}
                                     onClick={() => onVote(post.id, 1)}
+                                    type="button"
                                 >
                                     <ThumbsUp className="w-4 h-4" />
                                     <span className="text-sm font-medium">Upvote</span>
@@ -183,6 +233,7 @@ export default function PostDetail({ posts, currentUser, onVote }) {
                                 <button
                                     className={`flex items-center space-x-1 p-2 rounded-lg hover:bg-academic-100 transition-colors ${post.user_vote === -1 ? 'text-red-600' : ''}`}
                                     onClick={() => onVote(post.id, -1)}
+                                    type="button"
                                 >
                                     <ThumbsDown className="w-4 h-4" />
                                     <span className="text-sm font-medium">Downvote</span>
@@ -203,7 +254,9 @@ export default function PostDetail({ posts, currentUser, onVote }) {
                                 )}
                             </div>
                         </div>
+
                         {!currentUser && <div className="text-sm text-blue-700 mt-3">Log in to cast your vote.</div>}
+
                         {showReportForm && canReport && (
                             <form onSubmit={handleReportPost} className="mt-4 space-y-3 rounded-lg border border-amber-200 bg-amber-50 p-4">
                                 <label className="block text-sm font-medium text-academic-800">Why are you reporting this post?</label>
@@ -220,15 +273,19 @@ export default function PostDetail({ posts, currentUser, onVote }) {
                                 </div>
                             </form>
                         )}
+
                         {reportMessage && <div className="text-sm text-academic-700 mt-3">{reportMessage}</div>}
                     </div>
                 </div>
             </div>
 
-            <div className="card">
-                <h3 className="text-xl font-semibold text-academic-900 mb-4">Comments</h3>
+            <div className="card space-y-6">
+                <div className="flex items-center justify-between gap-3">
+                    <h3 className="text-xl font-semibold text-academic-900">Comments</h3>
+                    <span className="text-sm text-academic-500">Highest voted first</span>
+                </div>
 
-                <form onSubmit={handleAddComment} className="space-y-3 mb-6">
+                <form onSubmit={handleAddComment} className="space-y-3">
                     <textarea
                         placeholder="Write your comment..."
                         rows={3}
@@ -243,30 +300,88 @@ export default function PostDetail({ posts, currentUser, onVote }) {
                     </div>
                 </form>
 
-                {isLoadingComments ? (
-                    <div className="text-sm text-academic-600">Loading comments...</div>
-                ) : comments.length === 0 ? (
-                    <div className="text-sm text-academic-600">No comments yet.</div>
-                ) : (
-                    <div className="space-y-4">
-                        {comments.map((comment) => (
-                            <div key={comment.id} className="border border-academic-200 rounded-lg p-4">
-                                <div className="flex items-start justify-between gap-3">
-                                    <div>
-                                        <Link to={`/profile/${comment.author__username}`} className="font-medium text-academic-900 hover:text-primary-600 hover:underline transition-colors">
-                                            @{comment.author__username}
-                                        </Link>
-                                        <div className="text-xs text-academic-500">{formatDateTime(comment.created_at)}</div>
+                <div className="max-h-[30rem] overflow-y-auto pr-2">
+                    {isLoadingComments ? (
+                        <div className="text-sm text-academic-600">Loading comments...</div>
+                    ) : comments.length === 0 ? (
+                        <div className="text-sm text-academic-600">No comments yet.</div>
+                    ) : (
+                        <div className="space-y-4">
+                            {comments.map((comment) => {
+                                const commentAuthor = comment.author_username || comment.author__username;
+                                return (
+                                    <div key={comment.id} className="border border-academic-200 rounded-lg p-4">
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div>
+                                                <Link to={`/profile/${commentAuthor}`} className="font-medium text-academic-900 hover:text-primary-600 hover:underline transition-colors">
+                                                    @{commentAuthor}
+                                                </Link>
+                                                <div className="text-xs text-academic-500">{formatDateTime(comment.created_at)}</div>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <div className="flex items-center rounded-full border border-academic-200 bg-academic-50 px-2 py-1 text-xs text-academic-600">
+                                                    Score {comment.score || 0}
+                                                </div>
+                                                {currentUser && (
+                                                    <div className="flex items-center gap-1">
+                                                        <button
+                                                            className={`p-2 rounded-lg hover:bg-academic-100 transition-colors ${comment.user_vote === 1 ? 'text-green-600' : 'text-academic-500'}`}
+                                                            onClick={() => handleCommentVote(comment.id, 1)}
+                                                            aria-label="Upvote comment"
+                                                            type="button"
+                                                        >
+                                                            <ThumbsUp className="w-4 h-4" />
+                                                        </button>
+                                                        <button
+                                                            className={`p-2 rounded-lg hover:bg-academic-100 transition-colors ${comment.user_vote === -1 ? 'text-red-600' : 'text-academic-500'}`}
+                                                            onClick={() => handleCommentVote(comment.id, -1)}
+                                                            aria-label="Downvote comment"
+                                                            type="button"
+                                                        >
+                                                            <ThumbsDown className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                                )}
+                                                {currentUser && (currentUser.username === commentAuthor || ['Administrator', 'Developer', 'Moderator'].includes(currentUser.role)) && (
+                                                    <button className="btn btn-ghost text-red-600" onClick={() => handleDeleteComment(comment.id)} type="button">
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <p className="text-academic-800 mt-3 whitespace-pre-wrap">{comment.content}</p>
                                     </div>
-                                    {currentUser && (currentUser.username === comment.author__username || ['Administrator', 'Developer', 'Moderator'].includes(currentUser.role)) && (
-                                        <button className="btn btn-ghost text-red-600" onClick={() => handleDeleteComment(comment.id)}>
-                                            <Trash2 className="w-4 h-4" />
-                                        </button>
-                                    )}
-                                </div>
-                                <p className="text-academic-800 mt-3 whitespace-pre-wrap">{comment.content}</p>
-                            </div>
-                        ))}
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+
+                {relatedPosts.length > 0 && (
+                    <div className="pt-2 border-t border-academic-200">
+                        <div className="flex items-center justify-between mb-4">
+                            <h4 className="text-lg font-semibold text-academic-900">More on this topic</h4>
+                            <span className="text-sm text-academic-500">Similar discussions</span>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            {relatedPosts.map((related) => (
+                                <Link
+                                    key={related.id}
+                                    to={`/post/${related.id}`}
+                                    className="min-h-44 rounded-xl border border-academic-200 bg-academic-50 p-4 flex flex-col justify-between hover:border-primary-200 hover:shadow-sm transition-all"
+                                >
+                                    <div className="space-y-2">
+                                        <div className="text-xs uppercase tracking-wider text-academic-500">{related.topic || 'Uncategorized'}</div>
+                                        <h5 className="text-base font-semibold text-academic-900 line-clamp-2">{related.title}</h5>
+                                        <p className="text-sm text-academic-600 line-clamp-4 whitespace-pre-wrap">{related.content}</p>
+                                    </div>
+                                    <div className="mt-4 flex items-center justify-between text-xs text-academic-500">
+                                        <span>@{related.author}</span>
+                                        <span>{formatDateTime(related.created_at)}</span>
+                                    </div>
+                                </Link>
+                            ))}
+                        </div>
                     </div>
                 )}
             </div>

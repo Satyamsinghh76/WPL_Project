@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
 import {
     Sparkles,
@@ -189,9 +189,12 @@ function App() {
     const [searchResults, setSearchResults] = useState({ topics: [], posts: [], users: [] });
     const [isSearching, setIsSearching] = useState(false);
     const [isLoadingPosts, setIsLoadingPosts] = useState(false);
+    const [isLoadingMorePosts, setIsLoadingMorePosts] = useState(false);
     const [theme, setTheme] = useState(() => localStorage.getItem(THEME_STORAGE_KEY) || 'light');
     const [feedSort, setFeedSort] = useState('new');
     const [feedTopicId, setFeedTopicId] = useState(null);
+    const [feedCursor, setFeedCursor] = useState(null);
+    const [feedHasMore, setFeedHasMore] = useState(true);
     const [expandedTopicIds, setExpandedTopicIds] = useState({});
 
     useEffect(() => {
@@ -235,17 +238,48 @@ function App() {
         }
     };
 
-    const fetchPosts = async (userId = currentUser?.id, { sort = 'new', topic_id = null } = {}) => {
-        setIsLoadingPosts(true);
-        try {
-            const data = await API.fetchPosts(userId, { sort, topic_id });
-            setPosts(data.results || []);
-        } catch {
-            return;
-        } finally {
-            setIsLoadingPosts(false);
+    const fetchFeedPosts = useCallback(async (userId = currentUser?.id, { sort = feedSort, topic_id = feedTopicId, cursor = null, append = false, limit = 10 } = {}) => {
+        const normalizedTopicId = topic_id === 'all' || topic_id === '' ? null : topic_id;
+
+        if (append) {
+            setIsLoadingMorePosts(true);
+        } else {
+            setIsLoadingPosts(true);
+            setFeedCursor(null);
+            setFeedHasMore(true);
         }
-    };
+
+        setFeedSort(sort);
+        setFeedTopicId(normalizedTopicId);
+
+        try {
+            const data = await API.fetchPostsFeed(userId, {
+                sort,
+                topic_id: normalizedTopicId,
+                cursor,
+                limit,
+            });
+
+            const nextPosts = data.posts || [];
+            setPosts((prev) => (append ? [...prev, ...nextPosts] : nextPosts));
+            setFeedCursor(data.next_cursor || null);
+            setFeedHasMore(Boolean(data.has_more));
+            setFeedSort(sort);
+            setFeedTopicId(normalizedTopicId);
+        } catch {
+            if (!append) {
+                setPosts([]);
+                setFeedCursor(null);
+                setFeedHasMore(false);
+            }
+        } finally {
+            if (append) {
+                setIsLoadingMorePosts(false);
+            } else {
+                setIsLoadingPosts(false);
+            }
+        }
+    }, [currentUser?.id, feedSort, feedTopicId]);
 
     useEffect(() => {
         const raw = localStorage.getItem(USER_STORAGE_KEY);
@@ -277,7 +311,10 @@ function App() {
 
     useEffect(() => {
         fetchTopics();
-        fetchPosts(currentUser?.id, { sort: feedSort, topic_id: feedTopicId });
+    }, []);
+
+    useEffect(() => {
+        fetchFeedPosts(currentUser?.id, { sort: feedSort, topic_id: feedTopicId, cursor: null, append: false });
     }, [currentUser?.id]);
 
     const filteredPosts = posts;
@@ -373,11 +410,22 @@ function App() {
         }
     };
 
-    const handleFilterChange = async ({ sort = 'new', topic_id = null }) => {
-        setFeedSort(sort);
-        setFeedTopicId(topic_id);
-        await fetchPosts(currentUser?.id, { sort, topic_id });
-    };
+    const handleFilterChange = useCallback(async ({ sort = 'new', topic_id = null }) => {
+        await fetchFeedPosts(currentUser?.id, { sort, topic_id, cursor: null, append: false });
+    }, [currentUser?.id, fetchFeedPosts]);
+
+    const handleLoadMorePosts = useCallback(async () => {
+        if (isLoadingPosts || isLoadingMorePosts || !feedHasMore || !feedCursor) {
+            return;
+        }
+
+        await fetchFeedPosts(currentUser?.id, {
+            sort: feedSort,
+            topic_id: feedTopicId,
+            cursor: feedCursor,
+            append: true,
+        });
+    }, [currentUser?.id, feedCursor, feedHasMore, feedSort, feedTopicId, fetchFeedPosts, isLoadingMorePosts, isLoadingPosts]);
 
     const toggleTopicExpanded = (topicId) => {
         setExpandedTopicIds((prev) => ({
@@ -388,7 +436,7 @@ function App() {
 
     const resetHomeFeed = async () => {
         setSearchQuery('');
-        await handleFilterChange({ sort: 'new', topic_id: null });
+        await fetchFeedPosts(currentUser?.id, { sort: 'new', topic_id: null, cursor: null, append: false });
     };
 
     const handleVote = async (postId, value) => {
@@ -413,6 +461,20 @@ function App() {
             );
         } catch (error) {
             alert('Vote failed.');
+        }
+    };
+
+    const handleCommentVote = async (commentId, value) => {
+        if (!currentUser) {
+            alert('Please log in to vote.');
+            return null;
+        }
+
+        try {
+            return await API.voteComment(commentId, { value }, authHeaders(true));
+        } catch (error) {
+            alert(error?.message || 'Comment vote failed.');
+            return null;
         }
     };
 
@@ -690,10 +752,13 @@ function App() {
                                         currentUser={currentUser}
                                         topics={topics}
                                         isLoadingPosts={isLoadingPosts}
+                                        isLoadingMorePosts={isLoadingMorePosts}
+                                        feedHasMore={feedHasMore}
                                         handleDelete={handleDelete}
                                         handleToggleHidden={handleToggleHidden}
                                         handlePostForm={handlePostForm}
                                         handleVote={handleVote}
+                                        handleLoadMorePosts={handleLoadMorePosts}
                                         handleCreateTopic={handleCreateTopic}
                                         handleFilterChange={handleFilterChange}
                                         formData={formData}
@@ -701,7 +766,7 @@ function App() {
                                     />
                                 }
                             />
-                            <Route path="/post/:id" element={<PostDetail posts={posts} currentUser={currentUser} onVote={handleVote} />} />
+                            <Route path="/post/:id" element={<PostDetail posts={posts} currentUser={currentUser} onVote={handleVote} onCommentVote={handleCommentVote} />} />
                             <Route path="/login" element={<Login onLogin={handleLoginSuccess} />} />
                             <Route path="/signup" element={<Signup onLogin={handleLoginSuccess} />} />
                             <Route path="/auth/callback" element={<AuthCallback onLogin={handleLoginSuccess} />} />

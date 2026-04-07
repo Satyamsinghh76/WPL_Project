@@ -82,6 +82,29 @@ class Comment(models.Model):
 		return f"Comment {self.id} by {self.author.username}"
 
 
+class CommentVote(models.Model):
+	UPVOTE = 1
+	DOWNVOTE = -1
+	VALUE_CHOICES = [
+		(UPVOTE, 'Upvote'),
+		(DOWNVOTE, 'Downvote'),
+	]
+
+	user = models.ForeignKey(PlatformUser, on_delete=models.CASCADE, related_name='comment_votes', db_index=True)
+	comment = models.ForeignKey(Comment, on_delete=models.CASCADE, related_name='votes', db_index=True)
+	value = models.SmallIntegerField(choices=VALUE_CHOICES)
+	created_at = models.DateTimeField(auto_now_add=True)
+
+	class Meta:
+		unique_together = ('user', 'comment')
+		indexes = [
+			models.Index(fields=['comment']),
+		]
+
+	def __str__(self):
+		return f'{self.user.username} -> comment {self.comment_id} ({self.value})'
+
+
 class Conversation(models.Model):
 	TYPE_DIRECT = 'direct'
 	TYPE_GROUP = 'group'

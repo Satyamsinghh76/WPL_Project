@@ -7,7 +7,7 @@ from accounts.auth import get_authenticated_user, get_effective_role, parse_json
 from accounts.models import PlatformUser
 from posts.models import Post
 
-from .models import Comment, Conversation, ConversationMember, Message, Report, Vote
+from .models import Comment, CommentVote, Conversation, ConversationMember, Message, Report, Vote
 
 
 def _can_access_hidden_posts(role):
@@ -16,6 +16,20 @@ def _can_access_hidden_posts(role):
         PlatformUser.ROLE_DEVELOPER,
         PlatformUser.ROLE_MODERATOR,
     ]
+
+
+def _comment_payload(comment, score=0, user_vote=None):
+    return {
+        'id': comment.id,
+        'content': comment.content,
+        'created_at': comment.created_at.isoformat(),
+        'updated_at': comment.updated_at.isoformat(),
+        'author_id': comment.author_id,
+        'author_username': comment.author.username,
+        'author__username': comment.author.username,
+        'score': score or 0,
+        'user_vote': user_vote,
+    }
 
 
 @csrf_exempt
@@ -178,12 +192,29 @@ def comments_collection(request, post_id):
         return JsonResponse({'detail': 'Post not found.'}, status=404)
 
     if request.method == 'GET':
-        comments = (
-            Comment.objects.filter(post=post, is_deleted=False)
-            .select_related('author')
-            .values('id', 'content', 'created_at', 'updated_at', 'author_id', 'author__username')
-        )
-        return JsonResponse({'results': list(comments)})
+        viewer_id = request.GET.get('viewer_id')
+        comments = list(Comment.objects.filter(post=post, is_deleted=False).select_related('author'))
+        comment_ids = [item.id for item in comments]
+        score_map = {}
+        user_vote_map = {}
+        if comment_ids:
+            score_rows = CommentVote.objects.filter(comment_id__in=comment_ids).values('comment_id').annotate(score=Sum('value'))
+            score_map = {row['comment_id']: row['score'] or 0 for row in score_rows}
+            if viewer_id:
+                user_vote_rows = CommentVote.objects.filter(comment_id__in=comment_ids, user_id=viewer_id).values_list('comment_id', 'value')
+                user_vote_map = {comment_id: value for comment_id, value in user_vote_rows}
+
+        comments.sort(key=lambda item: (-(score_map.get(item.id, 0) or 0), item.created_at))
+        return JsonResponse({
+            'results': [
+                _comment_payload(
+                    comment,
+                    score=score_map.get(comment.id, 0),
+                    user_vote=user_vote_map.get(comment.id),
+                )
+                for comment in comments
+            ],
+        })
 
     if request.method == 'POST':
         if not actor:
@@ -200,19 +231,39 @@ def comments_collection(request, post_id):
             return JsonResponse({'detail': 'content is required.'}, status=400)
 
         comment = Comment.objects.create(author=actor, post=post, content=content)
-        return JsonResponse(
-            {
-                'id': comment.id,
-                'content': comment.content,
-                'created_at': comment.created_at.isoformat(),
-                'updated_at': comment.updated_at.isoformat(),
-                'author_id': actor.id,
-                'author__username': actor.username,
-            },
-            status=201,
-        )
+        return JsonResponse(_comment_payload(comment), status=201)
 
     return JsonResponse({'detail': 'Method not allowed.'}, status=405)
+
+
+@csrf_exempt
+def comment_vote(request, comment_id):
+    if request.method != 'POST':
+        return JsonResponse({'detail': 'Method not allowed.'}, status=405)
+
+    payload = parse_json_body(request)
+    if payload is None:
+        return JsonResponse({'detail': 'Invalid JSON payload.'}, status=400)
+
+    user = get_authenticated_user(request)
+    if not user:
+        return JsonResponse({'detail': 'Authentication required.'}, status=401)
+    user_role = get_effective_role(request, user)
+
+    value = payload.get('value')
+    if value not in [CommentVote.UPVOTE, CommentVote.DOWNVOTE]:
+        return JsonResponse({'detail': 'value (1 or -1) is required.'}, status=400)
+
+    comment = Comment.objects.select_related('author').filter(id=comment_id, is_deleted=False).first()
+    if not comment:
+        return JsonResponse({'detail': 'Comment not found.'}, status=404)
+
+    if user_role == PlatformUser.ROLE_GENERAL:
+        return JsonResponse({'detail': 'General users cannot vote.', 'code': 'comment_voting_not_allowed'}, status=403)
+
+    CommentVote.objects.update_or_create(user=user, comment=comment, defaults={'value': value})
+    score = CommentVote.objects.filter(comment=comment).aggregate(score=Sum('value'))['score'] or 0
+    return JsonResponse({'comment_id': comment.id, 'score': score, 'user_vote': value})
 
 
 @csrf_exempt

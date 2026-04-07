@@ -77,6 +77,24 @@ export const fetchPosts = (userId = null, { sort = 'new', topic_id = null, page 
   return request(`/posts/?${qs}`);
 };
 
+export const fetchPostsFeed = (userId = null, { sort = 'new', topic_id = null, cursor = null, limit = 10 } = {}) => {
+  const params = new URLSearchParams();
+  if (userId) params.append('viewer_id', userId);
+  params.append('sort', sort);
+  if (topic_id && topic_id !== 'all') params.append('topic_id', topic_id);
+  if (cursor) params.append('cursor', cursor);
+  params.append('limit', limit);
+
+  return request(`/posts/feed/?${params.toString()}`);
+};
+
+export const fetchRelatedPosts = (postId, { userId = null, limit = 3 } = {}) => {
+  const params = new URLSearchParams();
+  if (userId) params.append('viewer_id', userId);
+  params.append('limit', limit);
+  return request(`/posts/${postId}/related/?${params.toString()}`);
+};
+
 export const createPost = (postData, authHeaders) =>
   request('/posts/', {
     method: 'POST',
@@ -104,6 +122,13 @@ export const votePost = (postId, voteData, authHeaders) =>
     body: JSON.stringify(voteData),
   });
 
+export const voteComment = (commentId, voteData, authHeaders) =>
+  request(`/comments/${commentId}/vote/`, {
+    method: 'POST',
+    headers: authHeaders,
+    body: JSON.stringify(voteData),
+  });
+
 export const reportPost = (postId, reportData, authHeaders) =>
   request(`/posts/${postId}/report/`, {
     method: 'POST',
@@ -112,8 +137,12 @@ export const reportPost = (postId, reportData, authHeaders) =>
   });
 
 // ============ COMMENTS ============
-export const fetchComments = (postId) =>
-  request(`/posts/${postId}/comments/`);
+export const fetchComments = (postId, userId = null) => {
+  const params = new URLSearchParams();
+  if (userId) params.append('viewer_id', userId);
+  const qs = params.toString();
+  return request(`/posts/${postId}/comments/${qs ? `?${qs}` : ''}`);
+};
 
 export const createComment = (postId, commentData, authHeaders) =>
   request(`/posts/${postId}/comments/`, {

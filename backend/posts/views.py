@@ -1,9 +1,9 @@
-from django.db.models import Sum, Prefetch, Q, F, IntegerField
+from django.db.models import IntegerField, Q, Sum
 from django.db.models.functions import Coalesce
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.cache import cache_page
 from django.core.paginator import Paginator
+from django.utils.dateparse import parse_datetime
 
 from accounts.auth import get_authenticated_user, get_effective_role, parse_json_body
 from accounts.models import PlatformUser
@@ -18,7 +18,7 @@ def _post_to_dict(post, user_votes_by_post_id=None, vote_scores_by_post_id=None)
 	if user_votes_by_post_id and post.id in user_votes_by_post_id:
 		user_vote = user_votes_by_post_id[post.id]
 	
-	score = 0
+	score = getattr(post, 'score', 0) or 0
 	if vote_scores_by_post_id and post.id in vote_scores_by_post_id:
 		score = vote_scores_by_post_id[post.id] or 0
 
@@ -37,6 +37,31 @@ def _post_to_dict(post, user_votes_by_post_id=None, vote_scores_by_post_id=None)
 		'created_at': post.created_at.isoformat(),
 		'updated_at': post.updated_at.isoformat(),
 	}
+
+
+def _decode_cursor(cursor):
+	if not cursor:
+		return None, None
+
+	created_at_raw, separator, post_id_raw = cursor.partition('|')
+	if not separator:
+		created_at_raw = cursor
+		post_id_raw = ''
+
+	created_at = parse_datetime(created_at_raw)
+	if created_at is None:
+		return None, None
+
+	try:
+		post_id = int(post_id_raw) if post_id_raw else None
+	except (TypeError, ValueError):
+		post_id = None
+
+	return created_at, post_id
+
+
+def _encode_cursor(post):
+	return f'{post.created_at.isoformat()}|{post.id}'
 
 
 def _is_privileged_role(role):
@@ -264,6 +289,104 @@ def posts_collection(request):
 		return JsonResponse(_post_to_dict(post, user_votes_by_post_id={}, vote_scores_by_post_id={}), status=201)
 
 	return JsonResponse({'detail': 'Method not allowed.'}, status=405)
+
+
+@csrf_exempt
+def post_feed(request):
+	if request.method != 'GET':
+		return JsonResponse({'detail': 'Method not allowed.'}, status=405)
+
+	actor = get_authenticated_user(request)
+	actor_role = get_effective_role(request, actor)
+	can_view_hidden = _can_moderate_posts(actor_role)
+	viewer_id = request.GET.get('viewer_id')
+	limit_raw = request.GET.get('limit', 10)
+	cursor = request.GET.get('cursor')
+
+	try:
+		limit = max(1, min(int(limit_raw), 50))
+	except (TypeError, ValueError):
+		limit = 10
+
+	queryset = Post.objects.filter(is_deleted=False).select_related('author', 'topic')
+	if not can_view_hidden:
+		queryset = queryset.filter(is_hidden=False)
+
+	cursor_created_at, cursor_post_id = _decode_cursor(cursor)
+	if cursor_created_at:
+		cursor_filter = Q(created_at__lt=cursor_created_at)
+		if cursor_post_id:
+			cursor_filter |= Q(created_at=cursor_created_at, id__lt=cursor_post_id)
+		queryset = queryset.filter(cursor_filter)
+
+	queryset = queryset.order_by('-created_at', '-id')[: limit + 1]
+	posts = list(queryset)
+	has_more = len(posts) > limit
+	posts = posts[:limit]
+	post_ids = [post.id for post in posts]
+
+	vote_scores = {}
+	user_votes = {}
+	if post_ids:
+		vote_scores_data = Vote.objects.filter(post_id__in=post_ids).values('post_id').annotate(score=Sum('value'))
+		vote_scores = {row['post_id']: row['score'] for row in vote_scores_data}
+		if viewer_id:
+			user_votes_data = Vote.objects.filter(post_id__in=post_ids, user_id=viewer_id).values_list('post_id', 'value')
+			user_votes = {post_id: value for post_id, value in user_votes_data}
+
+	next_cursor = _encode_cursor(posts[-1]) if has_more and posts else None
+
+	return JsonResponse(
+		{
+			'posts': [_post_to_dict(post, user_votes_by_post_id=user_votes, vote_scores_by_post_id=vote_scores) for post in posts],
+			'next_cursor': next_cursor,
+			'has_more': has_more,
+		}
+	)
+
+
+@csrf_exempt
+def related_posts(request, post_id):
+	if request.method != 'GET':
+		return JsonResponse({'detail': 'Method not allowed.'}, status=405)
+
+	actor = get_authenticated_user(request)
+	actor_role = get_effective_role(request, actor)
+	can_view_hidden = _can_moderate_posts(actor_role)
+	viewer_id = request.GET.get('viewer_id')
+	limit_raw = request.GET.get('limit', 3)
+
+	try:
+		limit = max(1, min(int(limit_raw), 6))
+	except (TypeError, ValueError):
+		limit = 3
+
+	post = Post.objects.filter(id=post_id, is_deleted=False).select_related('author', 'topic').first()
+	if not post:
+		return JsonResponse({'detail': 'Post not found.'}, status=404)
+
+	if not post.topic_id:
+		return JsonResponse({'results': []})
+
+	queryset = Post.objects.filter(is_deleted=False, topic_id=post.topic_id).exclude(id=post.id).select_related('author', 'topic')
+	if not can_view_hidden:
+		queryset = queryset.filter(is_hidden=False)
+
+	queryset = queryset.annotate(score=Coalesce(Sum('votes__value'), 0, output_field=IntegerField())).order_by('-score', '-created_at', '-id')[:limit]
+	posts = list(queryset)
+	post_ids = [item.id for item in posts]
+
+	vote_scores = {item.id: item.score for item in posts}
+	user_votes = {}
+	if viewer_id and post_ids:
+		user_votes_data = Vote.objects.filter(post_id__in=post_ids, user_id=viewer_id).values_list('post_id', 'value')
+		user_votes = {post_id: value for post_id, value in user_votes_data}
+
+	return JsonResponse(
+		{
+			'results': [_post_to_dict(item, user_votes_by_post_id=user_votes, vote_scores_by_post_id=vote_scores) for item in posts]
+		}
+	)
 
 
 @csrf_exempt

@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, MessageSquare, ThumbsUp, ThumbsDown, Trash2, TrendingUp, Filter, Eye, EyeOff, FolderPlus } from 'lucide-react';
+import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 
 function formatTime(isoTime) {
     if (!isoTime) {
@@ -35,10 +36,13 @@ export default function Home({
     currentUser,
     topics,
     isLoadingPosts,
+    isLoadingMorePosts,
+    feedHasMore,
     handleDelete,
     handleToggleHidden,
     handlePostForm,
     handleVote,
+    handleLoadMorePosts,
     handleCreateTopic,
     handleFilterChange,
     formData,
@@ -53,6 +57,12 @@ export default function Home({
     const canPost = role !== 'General User';
     const canModerate = ['Moderator', 'Administrator', 'Developer'].includes(role);
     const canCreateTopic = role === 'Administrator';
+    const feedLoaderRef = useInfiniteScroll({
+        enabled: !isLoadingPosts,
+        hasMore: feedHasMore,
+        isLoading: isLoadingMorePosts,
+        onLoadMore: handleLoadMorePosts,
+    });
 
     useEffect(() => {
         setSortBy(activeSort || 'new');
@@ -292,11 +302,11 @@ export default function Home({
                         <p className="text-academic-600">Try creating a topic or publish the first discussion.</p>
                     </div>
                 ) : (
-                    <div className="snap-y snap-mandatory space-y-4">
+                    <div className="space-y-4">
                         {posts.map((post) => (
                             <article
                                 key={post.id}
-                                className="snap-start min-h-[78vh] rounded-2xl border border-academic-200 bg-white px-4 py-5 sm:px-8 sm:py-8 flex flex-col justify-between shadow-sm"
+                                className="rounded-2xl border border-academic-200 bg-white px-4 py-5 sm:px-8 sm:py-8 flex flex-col justify-between shadow-sm"
                             >
                                 <div className="space-y-5 sm:space-y-6">
                                     <div className="flex items-center justify-between text-xs text-academic-500">
@@ -375,6 +385,9 @@ export default function Home({
                                 </div>
                             </article>
                         ))}
+                        <div ref={feedLoaderRef} className="py-6 text-center text-sm text-academic-500">
+                            {isLoadingMorePosts ? 'Loading more discussions...' : feedHasMore ? 'Scroll for more discussions' : 'You are all caught up'}
+                        </div>
                     </div>
                 )}
             </div>

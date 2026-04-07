@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Comment, Report, Vote
+from .models import Comment, CommentVote, Report, Vote
 
 
 @admin.register(Vote)
@@ -22,3 +22,10 @@ class CommentAdmin(admin.ModelAdmin):
 	list_display = ('id', 'author', 'post', 'is_deleted', 'created_at')
 	list_filter = ('is_deleted',)
 	search_fields = ('author__username', 'post__title', 'content')
+
+
+@admin.register(CommentVote)
+class CommentVoteAdmin(admin.ModelAdmin):
+	list_display = ('id', 'user', 'comment', 'value', 'created_at')
+	list_filter = ('value',)
+	search_fields = ('user__username', 'comment__content', 'comment__post__title')
