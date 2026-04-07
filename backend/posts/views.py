@@ -93,6 +93,26 @@ def _encode_hot_cursor(post):
 	return f'{getattr(post, "score", 0) or 0}|{post.created_at.isoformat()}|{post.id}'
 
 
+def _topic_scope_ids(topic_id):
+	"""Return selected topic id plus all descendant topic ids."""
+	try:
+		root_id = int(topic_id)
+	except (TypeError, ValueError):
+		return []
+
+	ids = [root_id]
+	frontier = [root_id]
+
+	while frontier:
+		children = list(Topic.objects.filter(parent_id__in=frontier).values_list('id', flat=True))
+		if not children:
+			break
+		ids.extend(children)
+		frontier = children
+
+	return ids
+
+
 def _is_privileged_role(role):
     return role in {
         PlatformUser.ROLE_ADMIN,
@@ -232,11 +252,9 @@ def posts_collection(request):
 		
 		# Filter by topic if provided
 		if topic_id:
-			try:
-				topic_id = int(topic_id)
-				queryset = queryset.filter(topic_id=topic_id)
-			except (ValueError, TypeError):
-				pass  # Invalid topic_id, ignore filter
+			topic_scope_ids = _topic_scope_ids(topic_id)
+			if topic_scope_ids:
+				queryset = queryset.filter(topic_id__in=topic_scope_ids)
 		
 		# Apply sorting
 		if sort_by == 'hot':
@@ -344,10 +362,9 @@ def post_feed(request):
 		queryset = queryset.filter(is_hidden=False)
 
 	if topic_id:
-		try:
-			queryset = queryset.filter(topic_id=int(topic_id))
-		except (TypeError, ValueError):
-			pass
+		topic_scope_ids = _topic_scope_ids(topic_id)
+		if topic_scope_ids:
+			queryset = queryset.filter(topic_id__in=topic_scope_ids)
 
 	if sort_by == 'hot':
 		queryset = queryset.annotate(score=Coalesce(Sum('votes__value'), 0, output_field=IntegerField()))

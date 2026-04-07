@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, Calendar, FileText, Flag, ThumbsDown, ThumbsUp, Trash2, User } from 'lucide-react';
 import * as API from '../api';
+import MarkdownContent from '../components/MarkdownContent';
 
 function formatDateTime(isoTime) {
     if (!isoTime) {
@@ -207,7 +208,7 @@ export default function PostDetail({ posts, currentUser, onVote, onCommentVote }
                     </div>
 
                     <div className="prose prose-lg max-w-none">
-                        <div className="text-academic-800 leading-relaxed whitespace-pre-wrap">{post.content}</div>
+                        <MarkdownContent content={post.content || ''} className="text-academic-800 leading-relaxed" />
                     </div>
 
                     {post.references && (
@@ -373,7 +374,9 @@ export default function PostDetail({ posts, currentUser, onVote, onCommentVote }
                                     <div className="space-y-2">
                                         <div className="text-xs uppercase tracking-wider text-academic-500">{related.topic || 'Uncategorized'}</div>
                                         <h5 className="text-base font-semibold text-academic-900 line-clamp-2">{related.title}</h5>
-                                        <p className="text-sm text-academic-600 line-clamp-4 whitespace-pre-wrap">{related.content}</p>
+                                        <div className="max-h-24 overflow-hidden">
+                                            <MarkdownContent content={related.content || ''} className="text-sm text-academic-600" />
+                                        </div>
                                     </div>
                                     <div className="mt-4 flex items-center justify-between text-xs text-academic-500">
                                         <span>@{related.author}</span>

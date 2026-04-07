@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, MessageSquare, ThumbsUp, ThumbsDown, Trash2, TrendingUp, Filter, Eye, EyeOff, FolderPlus } from 'lucide-react';
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
+import MarkdownContent from '../components/MarkdownContent';
 
 function formatTime(isoTime) {
     if (!isoTime) {
@@ -53,6 +54,7 @@ export default function Home({
     const [showPostForm, setShowPostForm] = useState(false);
     const [showTopicForm, setShowTopicForm] = useState(false);
     const [topicDraft, setTopicDraft] = useState({ name: '', parent_id: '' });
+    const [isPreviewingPost, setIsPreviewingPost] = useState(false);
 
     const canPost = role !== 'General User';
     const canModerate = ['Moderator', 'Administrator', 'Developer'].includes(role);
@@ -104,6 +106,43 @@ export default function Home({
         }
     };
 
+    const topicOptions = useMemo(() => {
+        const childrenByParent = new Map();
+        topics.forEach((topic) => {
+            const parentKey = topic.parent_id == null ? 'root' : String(topic.parent_id);
+            if (!childrenByParent.has(parentKey)) {
+                childrenByParent.set(parentKey, []);
+            }
+            childrenByParent.get(parentKey).push(topic);
+        });
+
+        for (const entries of childrenByParent.values()) {
+            entries.sort((a, b) => a.name.localeCompare(b.name));
+        }
+
+        const flattened = [];
+        const visited = new Set();
+
+        const walk = (parentKey, depth) => {
+            const entries = childrenByParent.get(parentKey) || [];
+            entries.forEach((entry) => {
+                if (visited.has(entry.id)) {
+                    return;
+                }
+                visited.add(entry.id);
+                flattened.push({
+                    id: entry.id,
+                    name: entry.name,
+                    depth,
+                });
+                walk(String(entry.id), depth + 1);
+            });
+        };
+
+        walk('root', 0);
+        return flattened;
+    }, [topics]);
+
     return (
         <div className="max-w-4xl mx-auto space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -152,9 +191,9 @@ export default function Home({
                                 className="input"
                             >
                                 <option value="">No parent</option>
-                                {topics.map((topic) => (
+                                {topicOptions.map((topic) => (
                                     <option key={topic.id} value={topic.id}>
-                                        {topic.name}
+                                        {`${'   '.repeat(topic.depth)}${topic.name}`}
                                     </option>
                                 ))}
                             </select>
@@ -198,9 +237,9 @@ export default function Home({
                                     className="input"
                                 >
                                     <option value="">Select a topic...</option>
-                                    {topics.map((topic) => (
+                                    {topicOptions.map((topic) => (
                                         <option key={topic.id} value={topic.id}>
-                                            {topic.name}
+                                            {`${'   '.repeat(topic.depth)}${topic.name}`}
                                         </option>
                                     ))}
                                 </select>
@@ -220,15 +259,35 @@ export default function Home({
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-academic-700 mb-1">Content</label>
-                            <textarea
-                                placeholder="Share your research, insights, or questions..."
-                                rows={5}
-                                value={formData.content}
-                                onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-                                className="textarea"
-                                required
-                            />
+                            <div className="mb-1 flex items-center justify-between">
+                                <label className="block text-sm font-medium text-academic-700">Content</label>
+                                <button
+                                    type="button"
+                                    onClick={() => setIsPreviewingPost((prev) => !prev)}
+                                    className="text-sm text-academic-600 hover:text-academic-900 transition-colors"
+                                >
+                                    {isPreviewingPost ? 'Edit' : 'Preview'}
+                                </button>
+                            </div>
+
+                            {isPreviewingPost ? (
+                                <div className="min-h-40 rounded-lg border border-academic-200 bg-academic-50 p-4">
+                                    {formData.content.trim() ? (
+                                        <MarkdownContent content={formData.content} />
+                                    ) : (
+                                        <p className="text-sm text-academic-500">Preview will appear here as you write Markdown/LaTeX.</p>
+                                    )}
+                                </div>
+                            ) : (
+                                <textarea
+                                    placeholder="Share your research, insights, or questions... Supports Markdown and LaTeX (e.g. $E=mc^2$)."
+                                    rows={7}
+                                    value={formData.content}
+                                    onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                                    className="textarea"
+                                    required
+                                />
+                            )}
                         </div>
 
                         <div>
@@ -260,9 +319,9 @@ export default function Home({
                         <Filter className="w-4 h-4 text-academic-500" />
                         <select value={filterTopic} onChange={(e) => handleTopicChange(e.target.value)} className="text-sm border-0 focus:ring-0 bg-transparent">
                             <option value="all">All Topics</option>
-                            {topics.map((topic) => (
+                            {topicOptions.map((topic) => (
                                 <option key={topic.id} value={String(topic.id)}>
-                                    {topic.name}
+                                    {`${'   '.repeat(topic.depth)}${topic.name}`}
                                 </option>
                             ))}
                         </select>
@@ -317,7 +376,7 @@ export default function Home({
                                     {post.title && (
                                         <Link
                                             to={`/post/${post.id}`}
-                                            className="block text-xl sm:text-2xl font-bold leading-tight text-academic-900 hover:text-primary-700 transition-colors line-clamp-3"
+                                            className="block text-xl sm:text-2xl font-bold leading-tight text-academic-900 hover:text-academic-700 transition-colors line-clamp-3"
                                         >
                                             {post.title}
                                         </Link>
@@ -326,7 +385,7 @@ export default function Home({
                                     {post.content && (
                                         <Link
                                             to={`/post/${post.id}`}
-                                            className="block text-xs sm:text-sm font-normal leading-relaxed text-academic-700 hover:text-primary-700 transition-colors line-clamp-6"
+                                            className="block text-xs sm:text-sm font-normal leading-relaxed text-academic-700 hover:text-academic-900 transition-colors line-clamp-6"
                                         >
                                             {post.content}
                                         </Link>

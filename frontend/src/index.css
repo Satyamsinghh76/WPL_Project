@@ -108,6 +108,54 @@
   .text-gradient {
     @apply bg-gradient-to-r from-blue-600 to-gray-600 bg-clip-text text-transparent;
   }
+
+  .markdown-content {
+    @apply text-academic-800;
+  }
+
+  .markdown-content p {
+    @apply mb-3 leading-relaxed;
+  }
+
+  .markdown-content p:last-child {
+    @apply mb-0;
+  }
+
+  .markdown-content h1,
+  .markdown-content h2,
+  .markdown-content h3,
+  .markdown-content h4 {
+    @apply mt-4 mb-2 font-semibold text-academic-900;
+  }
+
+  .markdown-content ul,
+  .markdown-content ol {
+    @apply pl-6 mb-3;
+  }
+
+  .markdown-content ul {
+    list-style: disc;
+  }
+
+  .markdown-content ol {
+    list-style: decimal;
+  }
+
+  .markdown-content code {
+    @apply rounded bg-academic-100 px-1 py-0.5 text-sm;
+  }
+
+  .markdown-content pre {
+    @apply mb-3 overflow-x-auto rounded-lg bg-academic-100 p-3;
+  }
+
+  .markdown-content pre code {
+    @apply bg-transparent p-0;
+  }
+
+  .markdown-content blockquote {
+    @apply mb-3 border-l-4 border-academic-300 pl-4 text-academic-600;
+  }
 }
 
 @layer utilities {
@@ -203,6 +251,25 @@
   .dark .settings-page .btn-primary {
     background-color: #2563eb;
     color: #ffffff;
+  }
+
+  .dark .markdown-content,
+  .dark .markdown-content h1,
+  .dark .markdown-content h2,
+  .dark .markdown-content h3,
+  .dark .markdown-content h4,
+  .dark .markdown-content p,
+  .dark .markdown-content li,
+  .dark .markdown-content strong,
+  .dark .markdown-content em,
+  .dark .markdown-content .katex,
+  .dark .markdown-content .katex-display {
+    color: #e2e8f0;
+  }
+
+  .dark .markdown-content code,
+  .dark .markdown-content pre {
+    background-color: #0f172a;
   }
 }
 
