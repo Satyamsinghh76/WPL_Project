@@ -11,7 +11,6 @@ import {
     Bell,
     ChevronDown,
     Home as HomeIcon,
-    FileText,
     Shield,
     Code,
     Users,
@@ -55,6 +54,8 @@ function App() {
     const [formData, setFormData] = useState({ title: '', topic_id: '', content: '', refs: '' });
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
+    const [searchResults, setSearchResults] = useState({ topics: [], posts: [], users: [] });
+    const [isSearching, setIsSearching] = useState(false);
     const [isLoadingPosts, setIsLoadingPosts] = useState(false);
     const [theme, setTheme] = useState(() => localStorage.getItem(THEME_STORAGE_KEY) || 'light');
     const [feedSort, setFeedSort] = useState('new');
@@ -135,19 +136,44 @@ function App() {
         fetchPosts(currentUser?.id, { sort: feedSort, topic_id: feedTopicId });
     }, [currentUser?.id]);
 
-    const filteredPosts = useMemo(() => {
-        if (!searchQuery.trim()) {
-            return posts;
+    const filteredPosts = posts;
+
+    useEffect(() => {
+        const query = searchQuery.trim();
+        if (query.length < 2) {
+            setSearchResults({ topics: [], posts: [], users: [] });
+            setIsSearching(false);
+            return;
         }
-        const query = searchQuery.toLowerCase();
-        return posts.filter(
-            (post) =>
-                post.title.toLowerCase().includes(query) ||
-                post.content.toLowerCase().includes(query) ||
-                post.author.toLowerCase().includes(query) ||
-                (post.topic || '').toLowerCase().includes(query)
-        );
-    }, [posts, searchQuery]);
+
+        let cancelled = false;
+        setIsSearching(true);
+        const timer = setTimeout(async () => {
+            try {
+                const data = await API.searchAll(query);
+                if (!cancelled) {
+                    setSearchResults({
+                        topics: data.topics || [],
+                        posts: data.posts || [],
+                        users: data.users || [],
+                    });
+                }
+            } catch {
+                if (!cancelled) {
+                    setSearchResults({ topics: [], posts: [], users: [] });
+                }
+            } finally {
+                if (!cancelled) {
+                    setIsSearching(false);
+                }
+            }
+        }, 250);
+
+        return () => {
+            cancelled = true;
+            clearTimeout(timer);
+        };
+    }, [searchQuery]);
 
     const handlePostForm = async (e) => {
         e.preventDefault();
@@ -364,6 +390,73 @@ function App() {
                                         onChange={(e) => setSearchQuery(e.target.value)}
                                         className="w-full pl-10 pr-4 py-2 border border-academic-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm"
                                     />
+                                    {searchQuery.trim().length >= 2 && (
+                                        <div className="absolute top-full mt-2 w-full bg-white border border-academic-200 rounded-lg shadow-lg p-3 z-50 max-h-96 overflow-y-auto">
+                                            {isSearching && <div className="text-sm text-academic-500">Searching...</div>}
+
+                                            {!isSearching && searchResults.topics.length === 0 && searchResults.posts.length === 0 && searchResults.users.length === 0 && (
+                                                <div className="text-sm text-academic-500">No results found.</div>
+                                            )}
+
+                                            {!isSearching && searchResults.topics.length > 0 && (
+                                                <div className="mb-3">
+                                                    <div className="text-xs font-semibold uppercase tracking-wider text-academic-500 mb-1">Topics</div>
+                                                    <div className="space-y-1">
+                                                        {searchResults.topics.map((topic) => (
+                                                            <button
+                                                                key={`topic-${topic.id}`}
+                                                                onClick={() => {
+                                                                    handleFilterChange({ sort: feedSort, topic_id: topic.id });
+                                                                    setSearchQuery('');
+                                                                }}
+                                                                className="w-full text-left px-2 py-1 rounded hover:bg-academic-100 text-sm text-academic-700"
+                                                            >
+                                                                {topic.name}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {!isSearching && searchResults.posts.length > 0 && (
+                                                <div className="mb-3">
+                                                    <div className="text-xs font-semibold uppercase tracking-wider text-academic-500 mb-1">Posts</div>
+                                                    <div className="space-y-1">
+                                                        {searchResults.posts.map((post) => (
+                                                            <Link
+                                                                key={`post-${post.id}`}
+                                                                to={`/post/${post.id}`}
+                                                                onClick={() => setSearchQuery('')}
+                                                                className="block px-2 py-1 rounded hover:bg-academic-100 text-sm"
+                                                            >
+                                                                <div className="text-academic-800 line-clamp-1">{post.title}</div>
+                                                                <div className="text-xs text-academic-500">by @{post.author}{post.topic ? ` in ${post.topic}` : ''}</div>
+                                                            </Link>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {!isSearching && searchResults.users.length > 0 && (
+                                                <div>
+                                                    <div className="text-xs font-semibold uppercase tracking-wider text-academic-500 mb-1">Users</div>
+                                                    <div className="space-y-1">
+                                                        {searchResults.users.map((user) => (
+                                                            <Link
+                                                                key={`user-${user.id}`}
+                                                                to={currentUser?.username === user.username ? '/profile' : `/profile/${user.username}`}
+                                                                onClick={() => setSearchQuery('')}
+                                                                className="block px-2 py-1 rounded hover:bg-academic-100 text-sm"
+                                                            >
+                                                                <div className="text-academic-800">@{user.username}</div>
+                                                                <div className="text-xs text-academic-500 line-clamp-1">{user.full_name}</div>
+                                                            </Link>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
@@ -467,9 +560,8 @@ function App() {
                                                 <div className="flex items-center justify-between w-full px-3 py-2 rounded-lg hover:bg-academic-100 text-academic-700 transition-colors">
                                                     <button
                                                         onClick={() => handleFilterChange({ sort: feedSort, topic_id: topic.id })}
-                                                        className="flex items-center space-x-2 flex-1 text-left"
+                                                        className="flex items-center flex-1 text-left"
                                                     >
-                                                        <FileText className="w-4 h-4" />
                                                         <span className="font-medium">{topic.name}</span>
                                                     </button>
                                                     {(parentTopicMap[topic.id] || []).length > 0 && (

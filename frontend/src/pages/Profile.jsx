@@ -1,9 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { User, Calendar, Shield, Users, Code, CheckCircle, X, Plus, Upload } from 'lucide-react';
 import * as API from '../api';
-import { supabase, isSupabaseConfigured } from '../supabase';
-
-const PROFILE_BUCKET = import.meta.env.VITE_SUPABASE_PROFILE_BUCKET || 'profile-pictures';
 
 function formatJoinDate(isoTime) {
     if (!isoTime) {
@@ -159,8 +156,8 @@ export default function Profile({ currentUser, posts, onUserUpdate }) {
             return;
         }
 
-        if (!isSupabaseConfigured || !supabase) {
-            setMessage('Supabase storage is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.');
+        if (profilePictureFile.size > 5 * 1024 * 1024) {
+            setMessage('Image must be 5MB or smaller.');
             return;
         }
 
@@ -168,25 +165,28 @@ export default function Profile({ currentUser, posts, onUserUpdate }) {
         setMessage('');
 
         try {
-            const fileName = `${currentUser.id}-${Date.now()}-${profilePictureFile.name}`;
-            const { error: uploadError } = await supabase.storage
-                .from(PROFILE_BUCKET)
-                .upload(fileName, profilePictureFile, {
-                    upsert: true,
-                    contentType: profilePictureFile.type,
-                });
-
-            if (uploadError) {
-                throw uploadError;
+            const arrayBuffer = await profilePictureFile.arrayBuffer();
+            const bytes = new Uint8Array(arrayBuffer);
+            let binary = '';
+            const chunk = 0x8000;
+            for (let i = 0; i < bytes.length; i += chunk) {
+                binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
             }
+            const dataBase64 = btoa(binary);
 
-            const { data: publicData } = supabase.storage.from(PROFILE_BUCKET).getPublicUrl(fileName);
-            const publicUrl = publicData?.publicUrl;
-            if (!publicUrl) {
-                throw new Error('Unable to resolve the uploaded image URL.');
-            }
+            const uploadResult = await API.uploadProfilePicture(
+                {
+                    filename: `${Date.now()}-${profilePictureFile.name}`,
+                    content_type: profilePictureFile.type || 'image/jpeg',
+                    data_base64: dataBase64,
+                },
+                {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${currentUser.token}`,
+                }
+            );
 
-            const updatedUser = await API.updateUser(currentUser.id, { profile_picture: publicUrl }, {
+            const updatedUser = await API.updateUser(currentUser.id, { profile_picture: uploadResult.profile_picture }, {
                 'Content-Type': 'application/json',
                 Authorization: `Bearer ${currentUser.token}`,
             });

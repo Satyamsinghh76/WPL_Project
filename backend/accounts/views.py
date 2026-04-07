@@ -1,4 +1,5 @@
 import json
+import base64
 import urllib.request
 import urllib.error
 import logging
@@ -166,6 +167,36 @@ def _delete_supabase_user(supabase_user_id):
 	return False, JsonResponse({'detail': 'Failed to delete Supabase user.'}, status=502)
 
 
+def _upload_to_supabase_storage(path, raw_bytes, content_type='application/octet-stream'):
+	service_role_key = settings.SUPABASE_SERVICE_ROLE_KEY
+	if not service_role_key:
+		return None, JsonResponse({'detail': 'SUPABASE_SERVICE_ROLE_KEY is required for uploads.'}, status=500)
+
+	bucket = getattr(settings, 'SUPABASE_PROFILE_BUCKET', 'profile-pictures')
+	upload_url = f"{settings.SUPABASE_URL.rstrip('/')}/storage/v1/object/{bucket}/{path}"
+	request = urllib.request.Request(
+		upload_url,
+		method='POST',
+		data=raw_bytes,
+		headers={
+			'apikey': service_role_key,
+			'authorization': f'Bearer {service_role_key}',
+			'content-type': content_type,
+			'x-upsert': 'true',
+		},
+	)
+
+	try:
+		with urllib.request.urlopen(request, timeout=20):
+			public_url = f"{settings.SUPABASE_URL.rstrip('/')}/storage/v1/object/public/{bucket}/{path}"
+			return public_url, None
+	except urllib.error.HTTPError as exc:
+		raw_message = exc.read().decode('utf-8', errors='ignore') or exc.reason or 'Failed to upload profile picture.'
+		return None, JsonResponse({'detail': raw_message}, status=exc.code)
+	except urllib.error.URLError as exc:
+		return None, JsonResponse({'detail': f'Failed to reach Supabase storage: {exc.reason}'}, status=502)
+
+
 def role_options(request):
 	if request.method != 'GET':
 		return JsonResponse({'detail': 'Method not allowed.'}, status=405)
@@ -250,6 +281,45 @@ def users(request):
 		return JsonResponse({'id': user.id, 'username': user.username, 'role': user.role}, status=201)
 
 	return JsonResponse({'detail': 'Method not allowed.'}, status=405)
+
+
+@csrf_exempt
+def upload_profile_picture(request):
+	if request.method != 'POST':
+		return JsonResponse({'detail': 'Method not allowed.'}, status=405)
+
+	actor = get_authenticated_user(request)
+	if not actor:
+		return JsonResponse({'detail': 'Authentication required.'}, status=401)
+
+	try:
+		payload = json.loads(request.body or '{}')
+	except json.JSONDecodeError:
+		return JsonResponse({'detail': 'Invalid JSON payload.'}, status=400)
+
+	data_b64 = (payload.get('data_base64') or '').strip()
+	filename = (payload.get('filename') or 'profile.jpg').strip()
+	content_type = (payload.get('content_type') or 'image/jpeg').strip()
+	if not data_b64:
+		return JsonResponse({'detail': 'data_base64 is required.'}, status=400)
+
+	try:
+		raw_bytes = base64.b64decode(data_b64)
+	except Exception:
+		return JsonResponse({'detail': 'Invalid base64 image data.'}, status=400)
+
+	if len(raw_bytes) > 5 * 1024 * 1024:
+		return JsonResponse({'detail': 'Image must be 5MB or smaller.'}, status=400)
+
+	safe_name = ''.join(ch for ch in filename if ch.isalnum() or ch in {'.', '-', '_'}) or 'profile.jpg'
+	path = f"profiles/{actor.id}/{safe_name}"
+	public_url, error_response = _upload_to_supabase_storage(path, raw_bytes, content_type=content_type)
+	if error_response:
+		return error_response
+
+	actor.profile_picture = public_url
+	actor.save(update_fields=['profile_picture'])
+	return JsonResponse({'detail': 'Profile picture uploaded.', 'profile_picture': public_url})
 
 
 @csrf_exempt

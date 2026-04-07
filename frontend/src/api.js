@@ -53,6 +53,11 @@ async function request(path, options = {}) {
 export const fetchTopics = () =>
   request('/topics/');
 
+export const searchAll = (query) =>
+  request(`/search/?q=${encodeURIComponent(query)}`, {
+    method: 'GET',
+  });
+
 export const createTopic = (topicData, authHeaders) =>
   request('/topics/', {
     method: 'POST',
@@ -200,6 +205,13 @@ export const changePassword = (currentPassword, newPassword, authHeaders) =>
     method: 'POST',
     headers: authHeaders,
     body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+  });
+
+export const uploadProfilePicture = (payload, authHeaders) =>
+  request('/accounts/upload-profile-picture/', {
+    method: 'POST',
+    headers: authHeaders,
+    body: JSON.stringify(payload),
   });
 
 // ============ USERS ============

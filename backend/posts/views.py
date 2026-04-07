@@ -56,6 +56,54 @@ def _can_moderate_posts(role):
 	}
 
 
+def search_all(request):
+	if request.method != 'GET':
+		return JsonResponse({'detail': 'Method not allowed.'}, status=405)
+
+	query = (request.GET.get('q') or '').strip()
+	if len(query) < 2:
+		return JsonResponse({'topics': [], 'posts': [], 'users': []})
+
+	actor = get_authenticated_user(request)
+	actor_role = get_effective_role(request, actor)
+	can_view_hidden = _can_moderate_posts(actor_role)
+
+	topics = Topic.objects.filter(name__icontains=query).order_by('name')[:8]
+
+	posts_qs = Post.objects.filter(is_deleted=False, title__icontains=query).select_related('author', 'topic').order_by('-created_at')
+	if not can_view_hidden:
+		posts_qs = posts_qs.filter(is_hidden=False)
+	posts_qs = posts_qs[:8]
+
+	users = PlatformUser.objects.filter(is_active=True).filter(
+		Q(username__icontains=query) | Q(full_name__icontains=query)
+	).order_by('username')[:8]
+
+	return JsonResponse(
+		{
+			'topics': [{'id': t.id, 'name': t.name, 'parent_id': t.parent_id} for t in topics],
+			'posts': [
+				{
+					'id': p.id,
+					'title': p.title,
+					'author': p.author.username,
+					'topic': p.topic.name if p.topic else None,
+				}
+				for p in posts_qs
+			],
+			'users': [
+				{
+					'id': u.id,
+					'username': u.username,
+					'full_name': u.full_name,
+					'profile_picture': u.profile_picture,
+				}
+				for u in users
+			],
+		}
+	)
+
+
 @csrf_exempt
 def topics_collection(request):
     if request.method == 'GET':
