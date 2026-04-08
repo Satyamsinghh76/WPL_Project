@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import Home from './pages/Home';
 import PostDetail from './pages/PostDetail';
+import EditPost from './pages/EditPost';
 import Profile from './pages/Profile';
 import PublicProfile from './pages/PublicProfile';
 import ModerationReports from './pages/ModerationReports';
@@ -195,7 +196,7 @@ function App() {
     const [currentUser, setCurrentUser] = useState(null);
     const [posts, setPosts] = useState([]);
     const [topics, setTopics] = useState([]);
-    const [formData, setFormData] = useState({ title: '', topic_id: '', content_type: 'question', content: '', refs: '', media_files: [] });
+    const [formData, setFormData] = useState({ title: '', topic_id: '', content_type: 'question', content: '', references: [], is_ai: false, media_files: [] });
     const [rightPanelOpen, setRightPanelOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState({ topics: [], posts: [], users: [] });
@@ -206,6 +207,7 @@ function App() {
     const [feedSort, setFeedSort] = useState('new');
     const [feedTopicId, setFeedTopicId] = useState(null);
     const [feedContentType, setFeedContentType] = useState(null);
+    const [feedNoAI, setFeedNoAI] = useState(false);
     const [feedCursor, setFeedCursor] = useState(null);
     const [feedHasMore, setFeedHasMore] = useState(true);
     const [expandedTopicIds, setExpandedTopicIds] = useState({});
@@ -253,7 +255,7 @@ function App() {
         }
     };
 
-    const fetchFeedPosts = useCallback(async (userId = currentUser?.id, { sort = feedSort, topic_id = feedTopicId, content_type = feedContentType, cursor = null, append = false, limit = 10 } = {}) => {
+    const fetchFeedPosts = useCallback(async (userId = currentUser?.id, { sort = feedSort, topic_id = feedTopicId, content_type = feedContentType, is_no_ai = feedNoAI, cursor = null, append = false, limit = 10 } = {}) => {
         const normalizedTopicId = topic_id === 'all' || topic_id === '' ? null : topic_id;
         const normalizedContentType = content_type === 'all' || content_type === '' ? null : content_type;
 
@@ -268,12 +270,14 @@ function App() {
         setFeedSort(sort);
         setFeedTopicId(normalizedTopicId);
         setFeedContentType(normalizedContentType);
+        setFeedNoAI(is_no_ai);
 
         try {
             const data = await API.fetchPostsFeed(userId, {
                 sort,
                 topic_id: normalizedTopicId,
                 content_type: normalizedContentType,
+                is_ai: is_no_ai ? false : null,
                 cursor,
                 limit,
             });
@@ -285,6 +289,7 @@ function App() {
             setFeedSort(sort);
             setFeedTopicId(normalizedTopicId);
             setFeedContentType(normalizedContentType);
+            setFeedNoAI(is_no_ai);
         } catch {
             if (!append) {
                 setPosts([]);
@@ -298,7 +303,7 @@ function App() {
                 setIsLoadingPosts(false);
             }
         }
-    }, [currentUser?.id, feedSort, feedTopicId, feedContentType]);
+    }, [currentUser?.id, feedSort, feedTopicId, feedContentType, feedNoAI]);
 
     useEffect(() => {
         const raw = localStorage.getItem(USER_STORAGE_KEY);
@@ -405,17 +410,26 @@ function App() {
                 }));
             }
 
+            // Filter out empty references and prepare final reference list
+            const references = (formData.references || [])
+                .filter((ref) => ref.url && ref.url.trim())
+                .map((ref) => ({
+                    title: ref.title?.trim() || 'Reference',
+                    url: ref.url.trim(),
+                }));
+
             const data = await API.createPost({
                 title: formData.title,
                 content: formData.content,
-                references: formData.refs,
+                references: references.length > 0 ? references : [{ title: 'Reference', url: 'https://scholr.com' }],
                 topic_id: formData.topic_id || null,
                 content_type: formData.content_type || 'question',
                 media_items: mediaItems,
+                is_ai: formData.is_ai || false,
             }, authHeaders(true));
 
             setPosts((prev) => [data, ...prev]);
-            setFormData({ title: '', topic_id: '', content_type: 'question', content: '', refs: '', media_files: [] });
+            setFormData({ title: '', topic_id: '', content_type: 'question', content: '', references: [], is_ai: false, media_files: [] });
             return true;
         } catch (error) {
             alert(error?.message || 'Unable to publish post.');
@@ -453,8 +467,10 @@ function App() {
         }
     };
 
-    const handleFilterChange = useCallback(async ({ sort = 'new', topic_id = feedTopicId, content_type = feedContentType }) => {
-        await fetchFeedPosts(currentUser?.id, { sort, topic_id, content_type, cursor: null, append: false });
+    const handleFilterChange = useCallback(async ({ sort = 'new', topic_id = feedTopicId, content_type = feedContentType, is_ai = null }) => {
+        // Convert is_ai to is_no_ai: if is_ai is false (no AI), is_no_ai is true; if is_ai is null (all), is_no_ai is false
+        const is_no_ai = is_ai === false;
+        await fetchFeedPosts(currentUser?.id, { sort, topic_id, content_type, is_no_ai, cursor: null, append: false });
     }, [currentUser?.id, feedTopicId, feedContentType, fetchFeedPosts]);
 
     const handleLoadMorePosts = useCallback(async () => {
@@ -466,10 +482,11 @@ function App() {
             sort: feedSort,
             topic_id: feedTopicId,
             content_type: feedContentType,
+            is_no_ai: feedNoAI,
             cursor: feedCursor,
             append: true,
         });
-    }, [currentUser?.id, feedCursor, feedHasMore, feedSort, feedTopicId, feedContentType, fetchFeedPosts, isLoadingMorePosts, isLoadingPosts]);
+    }, [currentUser?.id, feedCursor, feedHasMore, feedSort, feedTopicId, feedContentType, feedNoAI, fetchFeedPosts, isLoadingMorePosts, isLoadingPosts]);
 
     const toggleTopicExpanded = (topicId) => {
         setExpandedTopicIds((prev) => ({
@@ -772,6 +789,7 @@ function App() {
                                 }
                             />
                             <Route path="/post/:id" element={<PostDetail posts={posts} currentUser={currentUser} onVote={handleVote} onCommentVote={handleCommentVote} />} />
+                            <Route path="/post/:id/edit" element={<EditPost topics={topics} currentUser={currentUser} onPostUpdate={(updatedPost) => { setPosts((prev) => { const idx = prev.findIndex((p) => p.id === updatedPost.id); if (idx === -1) { return [updatedPost, ...prev]; } const next = prev.slice(); next[idx] = updatedPost; return next; }); }} />} />
                             <Route path="/login" element={<Login onLogin={handleLoginSuccess} />} />
                             <Route path="/signup" element={<Signup onLogin={handleLoginSuccess} />} />
                             <Route path="/auth/callback" element={<AuthCallback onLogin={handleLoginSuccess} />} />

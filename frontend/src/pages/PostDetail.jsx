@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Calendar, FileText, Flag, ThumbsDown, ThumbsUp, Trash2, User } from 'lucide-react';
+import { ArrowLeft, Calendar, Edit2, FileText, Flag, ThumbsDown, ThumbsUp, Trash2, User, Zap } from 'lucide-react';
 import * as API from '../api';
 import MarkdownContent from '../components/MarkdownContent';
 import PostMediaCarousel from '../components/PostMediaCarousel';
@@ -14,7 +14,9 @@ function formatDateTime(isoTime) {
 
 export default function PostDetail({ posts, currentUser, onVote, onCommentVote }) {
     const { id } = useParams();
-    const post = posts.find((item) => item.id === Number(id));
+    const postFromFeed = posts.find((item) => item.id === Number(id));
+    const [post, setPost] = useState(postFromFeed || null);
+    const [isLoadingPost, setIsLoadingPost] = useState(false);
     const [comments, setComments] = useState([]);
     const [commentText, setCommentText] = useState('');
     const [isLoadingComments, setIsLoadingComments] = useState(false);
@@ -43,6 +45,18 @@ export default function PostDetail({ posts, currentUser, onVote, onCommentVote }
     };
 
     const canReport = Boolean(currentUser && (currentUser.acting_role || currentUser.role) !== 'General User');
+
+    const loadPost = async () => {
+        setIsLoadingPost(true);
+        try {
+            const data = await API.fetchPost(id, currentUser?.id);
+            setPost(data);
+        } catch {
+            setPost(postFromFeed || null);
+        } finally {
+            setIsLoadingPost(false);
+        }
+    };
 
     const loadComments = async () => {
         if (!post) {
@@ -74,6 +88,13 @@ export default function PostDetail({ posts, currentUser, onVote, onCommentVote }
     };
 
     useEffect(() => {
+        loadPost();
+    }, [id, currentUser?.id]);
+
+    useEffect(() => {
+        if (!post?.id) {
+            return;
+        }
         loadComments();
         loadRelatedPosts();
     }, [post?.id, currentUser?.id]);
@@ -152,6 +173,16 @@ export default function PostDetail({ posts, currentUser, onVote, onCommentVote }
         }
     };
 
+    if (isLoadingPost && !post) {
+        return (
+            <div className="max-w-4xl mx-auto">
+                <div className="card text-center py-12">
+                    <h2 className="text-2xl font-bold text-academic-900 mb-2">Loading Discussion...</h2>
+                </div>
+            </div>
+        );
+    }
+
     if (!post) {
         return (
             <div className="max-w-4xl mx-auto">
@@ -169,6 +200,8 @@ export default function PostDetail({ posts, currentUser, onVote, onCommentVote }
     }
 
     const authorName = post.author_username || post.author;
+    const canEditPost = Boolean(currentUser && post.author_id === currentUser.id);
+    const references = Array.isArray(post.references) ? post.references : [];
 
     return (
         <div className="max-w-4xl mx-auto space-y-6">
@@ -184,6 +217,12 @@ export default function PostDetail({ posts, currentUser, onVote, onCommentVote }
                             <div className="flex-1">
                                 <div className="flex items-center space-x-3 mb-4">
                                     <span className="badge badge-primary text-sm">{post.topic || 'Uncategorized'}</span>
+                                    {post.is_ai && (
+                                        <span className="inline-flex items-center gap-1 rounded-full border border-purple-300 bg-purple-50 px-2 py-0.5 text-purple-700 text-sm">
+                                            <Zap className="w-3 h-3" />
+                                            AI
+                                        </span>
+                                    )}
                                     <span className="text-sm text-academic-500">{formatDateTime(post.created_at)}</span>
                                 </div>
 
@@ -203,6 +242,15 @@ export default function PostDetail({ posts, currentUser, onVote, onCommentVote }
                                         <Calendar className="w-4 h-4" />
                                         <span>{formatDateTime(post.updated_at)}</span>
                                     </div>
+                                    {canEditPost && (
+                                        <Link
+                                            to={`/post/${post.id}/edit`}
+                                            className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-100"
+                                        >
+                                            <Edit2 className="w-4 h-4" />
+                                            Edit
+                                        </Link>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -217,11 +265,22 @@ export default function PostDetail({ posts, currentUser, onVote, onCommentVote }
                         <MarkdownContent content={post.content || ''} className="text-academic-800 leading-relaxed" />
                     </div>
 
-                    {post.references && (
+                    {references.length > 0 && (
                         <div className="border-t border-academic-200 pt-6">
                             <h3 className="text-lg font-semibold text-academic-900 mb-3">References</h3>
-                            <div className="bg-academic-50 rounded-lg p-4">
-                                <p className="text-academic-700 italic whitespace-pre-wrap">{post.references}</p>
+                            <div className="bg-academic-50 rounded-lg p-4 space-y-2">
+                                {references.map((ref, idx) => (
+                                    <div key={`${ref.url || 'ref'}-${idx}`} className="text-academic-700">
+                                        <a
+                                            href={ref.url}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="text-primary-700 hover:text-primary-900 hover:underline break-all"
+                                        >
+                                            {ref.title || ref.url}
+                                        </a>
+                                    </div>
+                                ))}
                             </div>
                         </div>
                     )}

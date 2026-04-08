@@ -66,28 +66,36 @@ export const createTopic = (topicData, authHeaders) =>
   });
 
 // ============ POSTS ============
-export const fetchPosts = (userId = null, { sort = 'new', topic_id = null, content_type = null, page = 1 } = {}) => {
+export const fetchPosts = (userId = null, { sort = 'new', topic_id = null, content_type = null, is_ai = null, page = 1 } = {}) => {
   const params = new URLSearchParams();
   if (userId) params.append('viewer_id', userId);
   params.append('sort', sort);
   if (topic_id && topic_id !== 'all') params.append('topic_id', topic_id);
   if (content_type && content_type !== 'all') params.append('content_type', content_type);
+  if (is_ai !== null && is_ai !== undefined) params.append('is_ai', is_ai);
   params.append('page', page);
   
   const qs = params.toString();
   return request(`/posts/?${qs}`);
 };
 
-export const fetchPostsFeed = (userId = null, { sort = 'new', topic_id = null, content_type = null, cursor = null, limit = 10 } = {}) => {
+export const fetchPostsFeed = (userId = null, { sort = 'new', topic_id = null, content_type = null, is_ai = null, cursor = null, limit = 10 } = {}) => {
   const params = new URLSearchParams();
   if (userId) params.append('viewer_id', userId);
   params.append('sort', sort);
   if (topic_id && topic_id !== 'all') params.append('topic_id', topic_id);
   if (content_type && content_type !== 'all') params.append('content_type', content_type);
+  if (is_ai !== null && is_ai !== undefined) params.append('is_ai', is_ai);
   if (cursor) params.append('cursor', cursor);
   params.append('limit', limit);
 
   return request(`/posts/feed/?${params.toString()}`);
+};
+
+export const fetchPost = (postId, userId = null) => {
+  const params = new URLSearchParams();
+  if (userId) params.append('viewer_id', userId);
+  return request(`/posts/${postId}/?${params.toString()}`);
 };
 
 export const fetchRelatedPosts = (postId, { userId = null, limit = 3 } = {}) => {
@@ -100,6 +108,13 @@ export const fetchRelatedPosts = (postId, { userId = null, limit = 3 } = {}) => 
 export const createPost = (postData, authHeaders) =>
   request('/posts/', {
     method: 'POST',
+    headers: authHeaders,
+    body: JSON.stringify(postData),
+  });
+
+export const editPost = (postId, postData, authHeaders) =>
+  request(`/posts/${postId}/`, {
+    method: 'PUT',
     headers: authHeaders,
     body: JSON.stringify(postData),
   });

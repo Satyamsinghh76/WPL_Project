@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, MessageSquare, ThumbsUp, ThumbsDown, Trash2, TrendingUp, Filter, Eye, EyeOff, FolderPlus, ChevronDown, ChevronRight } from 'lucide-react';
+import { Plus, MessageSquare, ThumbsUp, ThumbsDown, Trash2, TrendingUp, Filter, Eye, EyeOff, FolderPlus, ChevronDown, ChevronRight, Edit2, Zap } from 'lucide-react';
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 import MarkdownContent from '../components/MarkdownContent';
 import PostMediaCarousel from '../components/PostMediaCarousel';
@@ -71,6 +71,7 @@ export default function Home({
     const [sortBy, setSortBy] = useState('new');
     const [filterTopic, setFilterTopic] = useState('all');
     const [filterContentType, setFilterContentType] = useState('all');
+    const [filterNoAI, setFilterNoAI] = useState(false); // false = all content, true = no AI only
     const [showPostForm, setShowPostForm] = useState(false);
     const [showTopicForm, setShowTopicForm] = useState(false);
     const [topicDraft, setTopicDraft] = useState({ name: '', parent_id: '' });
@@ -111,6 +112,7 @@ export default function Home({
                 sort: newSort,
                 topic_id: filterTopic === 'all' ? null : filterTopic,
                 content_type: filterContentType === 'all' ? null : filterContentType,
+                is_ai: filterNoAI ? false : null,
             });
         }
     };
@@ -122,6 +124,7 @@ export default function Home({
                 sort: sortBy,
                 topic_id: newTopic === 'all' ? null : newTopic,
                 content_type: filterContentType === 'all' ? null : filterContentType,
+                is_ai: filterNoAI ? false : null,
             });
         }
     };
@@ -133,6 +136,20 @@ export default function Home({
                 sort: sortBy,
                 topic_id: filterTopic === 'all' ? null : filterTopic,
                 content_type: nextContentType === 'all' ? null : nextContentType,
+                is_ai: filterNoAI ? false : null,
+            });
+        }
+    };
+
+    const handleNoAIToggle = () => {
+        const newValue = !filterNoAI;
+        setFilterNoAI(newValue);
+        if (handleFilterChange) {
+            handleFilterChange({
+                sort: sortBy,
+                topic_id: filterTopic === 'all' ? null : filterTopic,
+                content_type: filterContentType === 'all' ? null : filterContentType,
+                is_ai: newValue ? false : null,
             });
         }
     };
@@ -585,14 +602,71 @@ export default function Home({
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium text-academic-700 mb-1">References (Optional)</label>
-                            <input
-                                type="text"
-                                placeholder="Citations, DOIs, links to papers..."
-                                value={formData.refs}
-                                onChange={(e) => setFormData({ ...formData, refs: e.target.value })}
-                                className="input"
-                            />
+                            <label className="block text-sm font-medium text-academic-700 mb-1">References (at least one required)</label>
+                            <div className="space-y-2">
+                                {(formData.references || [{ title: '', url: '' }]).map((ref, idx) => (
+                                    <div key={idx} className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            placeholder="Reference title (e.g., 'Smith et al., 2023')"
+                                            value={ref.title || ''}
+                                            onChange={(e) => {
+                                                const updated = [...(formData.references || [])];
+                                                updated[idx] = { ...ref, title: e.target.value };
+                                                setFormData({ ...formData, references: updated });
+                                            }}
+                                            className="input flex-1"
+                                        />
+                                        <input
+                                            type="url"
+                                            placeholder="URL (required)"
+                                            value={ref.url || ''}
+                                            onChange={(e) => {
+                                                const updated = [...(formData.references || [])];
+                                                updated[idx] = { ...ref, url: e.target.value };
+                                                setFormData({ ...formData, references: updated });
+                                            }}
+                                            className="input flex-1"
+                                            required
+                                        />
+                                        {(formData.references || []).length > 1 && (
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const updated = (formData.references || []).filter((_, i) => i !== idx);
+                                                    setFormData({ ...formData, references: updated });
+                                                }}
+                                                className="btn btn-sm btn-outline text-red-600 hover:bg-red-50"
+                                            >
+                                                Remove
+                                            </button>
+                                        )}
+                                    </div>
+                                ))}
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const updated = [...(formData.references || [])];
+                                        updated.push({ title: '', url: '' });
+                                        setFormData({ ...formData, references: updated });
+                                    }}
+                                    className="text-sm text-primary-600 hover:text-primary-700 font-medium"
+                                >
+                                    + Add another reference
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center space-x-2">
+                            <label className="flex items-center space-x-2 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={formData.is_ai || false}
+                                    onChange={(e) => setFormData({ ...formData, is_ai: e.target.checked })}
+                                    className="w-4 h-4"
+                                />
+                                <span className="text-sm font-medium text-academic-700">Mark as AI-generated content</span>
+                            </label>
                         </div>
 
                         <div>
@@ -714,6 +788,34 @@ export default function Home({
                             ))}
                         </select>
                     </div>
+
+                    <button
+                        type="button"
+                        role="switch"
+                        aria-checked={filterNoAI}
+                        onClick={handleNoAIToggle}
+                        className="flex items-center gap-2 rounded-full px-2 py-1 transition-colors"
+                        title="Toggle No AI filter"
+                    >
+                        <span className={`text-sm font-medium ${filterNoAI ? 'text-purple-700' : 'text-academic-600'}`}>
+                            No AI
+                        </span>
+                        <span
+                            className={`relative inline-flex h-7 w-14 items-center rounded-full border-2 transition-all ${
+                                filterNoAI
+                                    ? 'border-purple-500 bg-purple-100 shadow-lg shadow-purple-400/50'
+                                    : 'border-academic-300 bg-white'
+                            }`}
+                        >
+                            <span
+                                className={`inline-block h-5 w-5 transform rounded-full transition-transform duration-200 ${
+                                    filterNoAI
+                                        ? 'translate-x-7 bg-purple-600'
+                                        : 'translate-x-1 bg-academic-400'
+                                }`}
+                            />
+                        </span>
+                    </button>
                 </div>
 
                 <div className="text-sm text-academic-600">{posts.length} {posts.length === 1 ? 'discussion' : 'discussions'}</div>
@@ -749,9 +851,15 @@ export default function Home({
                             >
                                 <div className="space-y-5 sm:space-y-6">
                                     <div className="flex items-center justify-between text-xs text-academic-500">
-                                        <div className="flex items-center gap-2">
+                                        <div className="flex items-center gap-2 flex-wrap">
                                             <span className="inline-flex items-center rounded-full border border-academic-200 px-2 py-0.5">{post.topic || 'Uncategorized'}</span>
                                             <span className="inline-flex items-center rounded-full border border-primary-200 bg-primary-50 px-2 py-0.5 text-primary-700">{getContentTypeLabel(post.content_type)}</span>
+                                            {post.is_ai && (
+                                                <span className="inline-flex items-center gap-1 rounded-full border border-purple-300 bg-purple-50 px-2 py-0.5 text-purple-700">
+                                                    <Zap className="w-3 h-3" />
+                                                    AI
+                                                </span>
+                                            )}
                                         </div>
                                         <span>{formatTime(post.created_at)}</span>
                                     </div>
@@ -817,6 +925,15 @@ export default function Home({
                                             >
                                                 {post.is_hidden ? <Eye className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
                                             </button>
+                                        )}
+                                        {currentUser && post.author_id === currentUser.id && (
+                                            <Link
+                                                to={`/post/${post.id}/edit`}
+                                                className="p-2 rounded-lg hover:bg-blue-50 text-blue-600 transition-colors"
+                                                title="Edit post"
+                                            >
+                                                <Edit2 className="w-5 h-5" />
+                                            </Link>
                                         )}
                                         {canModerate && (
                                             <button

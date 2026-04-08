@@ -188,13 +188,22 @@ def _post_to_dict(post, user_votes_by_post_id=None, vote_scores_by_post_id=None)
 
 	media_items = post.media_items if isinstance(post.media_items, list) else []
 
+	# Parse references from JSON string
+	try:
+		references = json.loads(post.references) if isinstance(post.references, str) else post.references
+		if not isinstance(references, list):
+			references = []
+	except (json.JSONDecodeError, TypeError):
+		references = []
+
 	return {
 		'id': post.id,
 		'title': post.title,
 		'content_type': post.content_type,
 		'content_type_label': post.get_content_type_display(),
 		'content': post.content,
-		'references': post.references,
+		'references': references,
+		'is_ai': post.is_ai,
 		'author_id': post.author_id,
 		'author': post.author.username,
 		'topic': post.topic.name if post.topic else None,
@@ -427,6 +436,14 @@ def posts_collection(request):
 		if content_type_raw and content_type is None:
 			return JsonResponse({'detail': 'Invalid content_type filter.'}, status=400)
 		
+		# Parse is_ai filter
+		is_ai_filter = request.GET.get('is_ai')
+		is_ai_value = None
+		if is_ai_filter and is_ai_filter.lower() in ('true', '1', 'yes'):
+			is_ai_value = True
+		elif is_ai_filter and is_ai_filter.lower() in ('false', '0', 'no'):
+			is_ai_value = False
+		
 		# Build queryset with filters
 		queryset = Post.objects.filter(is_deleted=False).select_related('author', 'topic')
 		if not can_view_hidden:
@@ -440,6 +457,10 @@ def posts_collection(request):
 
 		if content_type:
 			queryset = queryset.filter(content_type=content_type)
+		
+		# Filter by is_ai if provided
+		if is_ai_value is not None:
+			queryset = queryset.filter(is_ai=is_ai_value)
 		
 		# Apply sorting
 		if sort_by == 'hot':
@@ -513,9 +534,26 @@ def posts_collection(request):
 		if content_type not in VALID_CONTENT_TYPES:
 			return JsonResponse({'detail': 'Invalid content_type.'}, status=400)
 
+		# Handle references - ensure at least one is provided
+		references_list = payload.get('references', [])
+		if not isinstance(references_list, list):
+			references_list = []
+		if not references_list:
+			# Default to scholr.com if no references provided
+			references_list = [{'title': 'Reference', 'url': 'https://scholr.com'}]
+		# Validate references
+		for ref in references_list:
+			if not isinstance(ref, dict) or not ref.get('url'):
+				return JsonResponse({'detail': 'Each reference must have a url.'}, status=400)
+		references_json = json.dumps(references_list)
+
 		media_items, media_error = _normalize_media_items(payload.get('media_items', []), author.id)
 		if media_error:
 			return media_error
+
+		is_ai = payload.get('is_ai', False)
+		if not isinstance(is_ai, bool):
+			is_ai = False
 
 		post = Post.objects.create(
 			author=author,
@@ -523,8 +561,9 @@ def posts_collection(request):
 			content_type=content_type,
 			title=payload['title'],
 			content=payload['content'],
-			references=payload.get('references', ''),
+			references=references_json,
 			media_items=media_items,
+			is_ai=is_ai,
 		)
 		# Refresh from DB to get related data
 		post.refresh_from_db()
@@ -532,6 +571,111 @@ def posts_collection(request):
 		return JsonResponse(_post_to_dict(post, user_votes_by_post_id={}, vote_scores_by_post_id={}), status=201)
 
 	return JsonResponse({'detail': 'Method not allowed.'}, status=405)
+
+
+@csrf_exempt
+def post_detail(request, post_id):
+	"""Get, edit, or delete a specific post."""
+	if request.method == 'GET':
+		actor = get_authenticated_user(request)
+		actor_role = get_effective_role(request, actor)
+		can_view_hidden = _can_moderate_posts(actor_role)
+		viewer_id = request.GET.get('viewer_id')
+		
+		post = Post.objects.filter(id=post_id, is_deleted=False).select_related('author', 'topic').first()
+		if not post:
+			return JsonResponse({'detail': 'Post not found.'}, status=404)
+		
+		if post.is_hidden and not can_view_hidden:
+			return JsonResponse({'detail': 'Post not found.'}, status=404)
+		
+		# Get votes for this post
+		post_ids = [post.id]
+		vote_scores = {}
+		user_votes = {}
+		
+		vote_scores_data = Vote.objects.filter(post_id__in=post_ids).values('post_id').annotate(score=Sum('value'))
+		vote_scores = {v['post_id']: v['score'] for v in vote_scores_data}
+		
+		if viewer_id:
+			user_votes_data = Vote.objects.filter(post_id__in=post_ids, user_id=viewer_id).values_list('post_id', 'value')
+			user_votes = {post_id: value for post_id, value in user_votes_data}
+		
+		return JsonResponse(_post_to_dict(post, user_votes_by_post_id=user_votes, vote_scores_by_post_id=vote_scores))
+	
+	elif request.method in ('PUT', 'PATCH'):
+		actor = get_authenticated_user(request)
+		if not actor:
+			return JsonResponse({'detail': 'Authentication required.'}, status=401)
+		
+		post = Post.objects.filter(id=post_id, is_deleted=False).select_related('author', 'topic').first()
+		if not post:
+			return JsonResponse({'detail': 'Post not found.'}, status=404)
+		
+		# Only the original post author can edit.
+		if post.author_id != actor.id:
+			return JsonResponse({'detail': 'You can only edit your own posts.'}, status=403)
+		
+		payload = parse_json_body(request)
+		if payload is None:
+			return JsonResponse({'detail': 'Invalid JSON payload.'}, status=400)
+		
+		# Update title if provided
+		if 'title' in payload:
+			post.title = payload['title'].strip()
+		
+		# Update content if provided
+		if 'content' in payload:
+			post.content = payload['content']
+		
+		# Update topic if provided
+		if 'topic_id' in payload:
+			if payload['topic_id']:
+				topic = Topic.objects.filter(id=payload['topic_id']).first()
+				post.topic = topic
+			else:
+				post.topic = None
+		
+		# Update content_type if provided
+		if 'content_type' in payload:
+			content_type = _normalize_content_type(payload.get('content_type'))
+			if content_type and content_type in VALID_CONTENT_TYPES:
+				post.content_type = content_type
+		
+		# Update references if provided
+		if 'references' in payload:
+			references_list = payload.get('references', [])
+			if not isinstance(references_list, list):
+				references_list = []
+			if not references_list:
+				references_list = [{'title': 'Reference', 'url': 'https://scholr.com'}]
+			# Validate references
+			for ref in references_list:
+				if not isinstance(ref, dict) or not ref.get('url'):
+					return JsonResponse({'detail': 'Each reference must have a url.'}, status=400)
+			post.references = json.dumps(references_list)
+		
+		# Update is_ai if provided
+		if 'is_ai' in payload:
+			is_ai = payload.get('is_ai', False)
+			if isinstance(is_ai, bool):
+				post.is_ai = is_ai
+		
+		# Update media_items if provided
+		if 'media_items' in payload:
+			media_items, media_error = _normalize_media_items(payload.get('media_items', []), post.author_id)
+			if media_error:
+				return media_error
+			post.media_items = media_items
+		
+		post.save()
+		post.refresh_from_db()
+		post = Post.objects.filter(id=post.id).select_related('author', 'topic').first()
+		
+		return JsonResponse(_post_to_dict(post, user_votes_by_post_id={}, vote_scores_by_post_id={}))
+	
+	else:
+		return JsonResponse({'detail': 'Method not allowed.'}, status=405)
 
 
 @csrf_exempt
@@ -618,6 +762,12 @@ def post_feed(request):
 	topic_id = request.GET.get('topic_id')
 	content_type_raw = request.GET.get('content_type')
 	content_type = _normalize_content_type(content_type_raw)
+	is_ai_filter = request.GET.get('is_ai')
+	is_ai_value = None
+	if is_ai_filter and is_ai_filter.lower() in ('true', '1', 'yes'):
+		is_ai_value = True
+	elif is_ai_filter and is_ai_filter.lower() in ('false', '0', 'no'):
+		is_ai_value = False
 	if content_type_raw and content_type is None:
 		return JsonResponse({'detail': 'Invalid content_type filter.'}, status=400)
 
@@ -637,6 +787,9 @@ def post_feed(request):
 
 	if content_type:
 		queryset = queryset.filter(content_type=content_type)
+
+	if is_ai_value is not None:
+		queryset = queryset.filter(is_ai=is_ai_value)
 
 	if sort_by == 'hot':
 		queryset = queryset.annotate(score=Coalesce(Sum('votes__value'), 0, output_field=IntegerField()))
@@ -685,6 +838,7 @@ def post_feed(request):
 			'sort': sort_by,
 			'topic_id': topic_id,
 			'content_type': content_type,
+			'is_ai': is_ai_value,
 		}
 	)
 

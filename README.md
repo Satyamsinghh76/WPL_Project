@@ -51,6 +51,7 @@ We're building an alternative to dopamine-driven feeds: a place where every clai
 - *"Trust, but verify."* — Built on evidence grades, not just upvotes.
 - *"Depth over dopamine."* — Built for attention, not addiction.
 - *"Stop scrolling. Start thinking."* — A feed designed for focus.
+- *"Shift your scrolling habits into meaningful learning."* — Keep the habit, upgrade the outcome.
 
 ---
 

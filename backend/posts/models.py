@@ -45,8 +45,9 @@ class Post(models.Model):
 	content_type = models.CharField(max_length=20, choices=CONTENT_TYPE_CHOICES, default=CONTENT_TYPE_OTHER, db_index=True)
 	title = models.CharField(max_length=255)
 	content = models.TextField()
-	references = models.TextField(blank=True)
+	references = models.TextField(blank=True, default='[]')
 	media_items = models.JSONField(default=list, blank=True)
+	is_ai = models.BooleanField(default=False, db_index=True)
 	is_deleted = models.BooleanField(default=False, db_index=True)
 	is_hidden = models.BooleanField(default=False, db_index=True)
 	created_at = models.DateTimeField(auto_now_add=True, db_index=True)
@@ -59,6 +60,8 @@ class Post(models.Model):
 			models.Index(fields=['-created_at', 'is_deleted']),
 			models.Index(fields=['content_type', '-created_at'], name='posts_ct_created_idx'),
 			models.Index(fields=['topic', 'content_type', '-created_at'], name='posts_topic_ct_created_idx'),
+			models.Index(fields=['is_ai', '-created_at'], name='posts_is_ai_created_idx'),
+			models.Index(fields=['is_ai', 'content_type', '-created_at'], name='posts_is_ai_ct_created_idx'),
 		]
 
 	def __str__(self):

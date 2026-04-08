@@ -6,6 +6,9 @@
 
 > Scholr is an anti-brain-rot platform for academics. We are intentionally building against addictive social media patterns: no chaos-first feed, no outrage incentives, no shallow clout loops. Every claim is evidence-graded, every discussion is structured, and reputation is earned through outcomes. Think: deep-work social infrastructure for research.
 
+> **Shift your scrolling habits into meaningful learning.**
+> Instead of endless distraction loops, Scholr turns your daily feed time into better thinking, stronger knowledge, and real collaboration.
+
 ---
 
 ## 💼 **For Investors/Accelerators**
@@ -96,6 +99,8 @@ Infrastructure for research trust and attention health. Academic GitHub with ant
 | **Anti-brain-rot** | *"Depth over dopamine."* |
 | **Attention mission** | *"Stop scrolling. Start thinking."* |
 | **Anti-feed stance** | *"Built to make you smarter, not addicted."* |
+| **Habit shift** | *"Shift your scrolling habits into meaningful learning."* |
+| **Behavior design** | *"Keep the habit. Upgrade the outcome."* |
 
 ---
 
@@ -211,7 +216,24 @@ Cut through the noise. Build on evidence.
 The platform where ideas are claimed, evidence is graded, 
 and collaboration has structure.
 
+Shift your scrolling habits into something meaningful:
+learn faster, think deeper, and build with others.
+
 [Try Alpha Free] [Docs]
+```
+
+### **Habit Reframe Section**
+```
+You already open your feed every day.
+
+We are not asking you to fight your habit.
+We are helping you redirect it.
+
+From passive scrolling → active learning
+From algorithmic distraction → deliberate depth
+From short-term dopamine → long-term reputation
+
+Keep the habit. Upgrade the outcome.
 ```
 
 ### **Problem Section**
