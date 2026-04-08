@@ -66,22 +66,24 @@ export const createTopic = (topicData, authHeaders) =>
   });
 
 // ============ POSTS ============
-export const fetchPosts = (userId = null, { sort = 'new', topic_id = null, page = 1 } = {}) => {
+export const fetchPosts = (userId = null, { sort = 'new', topic_id = null, content_type = null, page = 1 } = {}) => {
   const params = new URLSearchParams();
   if (userId) params.append('viewer_id', userId);
   params.append('sort', sort);
   if (topic_id && topic_id !== 'all') params.append('topic_id', topic_id);
+  if (content_type && content_type !== 'all') params.append('content_type', content_type);
   params.append('page', page);
   
   const qs = params.toString();
   return request(`/posts/?${qs}`);
 };
 
-export const fetchPostsFeed = (userId = null, { sort = 'new', topic_id = null, cursor = null, limit = 10 } = {}) => {
+export const fetchPostsFeed = (userId = null, { sort = 'new', topic_id = null, content_type = null, cursor = null, limit = 10 } = {}) => {
   const params = new URLSearchParams();
   if (userId) params.append('viewer_id', userId);
   params.append('sort', sort);
   if (topic_id && topic_id !== 'all') params.append('topic_id', topic_id);
+  if (content_type && content_type !== 'all') params.append('content_type', content_type);
   if (cursor) params.append('cursor', cursor);
   params.append('limit', limit);
 

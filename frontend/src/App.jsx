@@ -195,7 +195,7 @@ function App() {
     const [currentUser, setCurrentUser] = useState(null);
     const [posts, setPosts] = useState([]);
     const [topics, setTopics] = useState([]);
-    const [formData, setFormData] = useState({ title: '', topic_id: '', content: '', refs: '', media_files: [] });
+    const [formData, setFormData] = useState({ title: '', topic_id: '', content_type: 'question', content: '', refs: '', media_files: [] });
     const [rightPanelOpen, setRightPanelOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState({ topics: [], posts: [], users: [] });
@@ -205,6 +205,7 @@ function App() {
     const [theme, setTheme] = useState(() => localStorage.getItem(THEME_STORAGE_KEY) || 'light');
     const [feedSort, setFeedSort] = useState('new');
     const [feedTopicId, setFeedTopicId] = useState(null);
+    const [feedContentType, setFeedContentType] = useState(null);
     const [feedCursor, setFeedCursor] = useState(null);
     const [feedHasMore, setFeedHasMore] = useState(true);
     const [expandedTopicIds, setExpandedTopicIds] = useState({});
@@ -252,8 +253,9 @@ function App() {
         }
     };
 
-    const fetchFeedPosts = useCallback(async (userId = currentUser?.id, { sort = feedSort, topic_id = feedTopicId, cursor = null, append = false, limit = 10 } = {}) => {
+    const fetchFeedPosts = useCallback(async (userId = currentUser?.id, { sort = feedSort, topic_id = feedTopicId, content_type = feedContentType, cursor = null, append = false, limit = 10 } = {}) => {
         const normalizedTopicId = topic_id === 'all' || topic_id === '' ? null : topic_id;
+        const normalizedContentType = content_type === 'all' || content_type === '' ? null : content_type;
 
         if (append) {
             setIsLoadingMorePosts(true);
@@ -265,11 +267,13 @@ function App() {
 
         setFeedSort(sort);
         setFeedTopicId(normalizedTopicId);
+        setFeedContentType(normalizedContentType);
 
         try {
             const data = await API.fetchPostsFeed(userId, {
                 sort,
                 topic_id: normalizedTopicId,
+                content_type: normalizedContentType,
                 cursor,
                 limit,
             });
@@ -280,6 +284,7 @@ function App() {
             setFeedHasMore(Boolean(data.has_more));
             setFeedSort(sort);
             setFeedTopicId(normalizedTopicId);
+            setFeedContentType(normalizedContentType);
         } catch {
             if (!append) {
                 setPosts([]);
@@ -293,7 +298,7 @@ function App() {
                 setIsLoadingPosts(false);
             }
         }
-    }, [currentUser?.id, feedSort, feedTopicId]);
+    }, [currentUser?.id, feedSort, feedTopicId, feedContentType]);
 
     useEffect(() => {
         const raw = localStorage.getItem(USER_STORAGE_KEY);
@@ -405,11 +410,12 @@ function App() {
                 content: formData.content,
                 references: formData.refs,
                 topic_id: formData.topic_id || null,
+                content_type: formData.content_type || 'question',
                 media_items: mediaItems,
             }, authHeaders(true));
 
             setPosts((prev) => [data, ...prev]);
-            setFormData({ title: '', topic_id: '', content: '', refs: '', media_files: [] });
+            setFormData({ title: '', topic_id: '', content_type: 'question', content: '', refs: '', media_files: [] });
             return true;
         } catch (error) {
             alert(error?.message || 'Unable to publish post.');
@@ -447,9 +453,9 @@ function App() {
         }
     };
 
-    const handleFilterChange = useCallback(async ({ sort = 'new', topic_id = null }) => {
-        await fetchFeedPosts(currentUser?.id, { sort, topic_id, cursor: null, append: false });
-    }, [currentUser?.id, fetchFeedPosts]);
+    const handleFilterChange = useCallback(async ({ sort = 'new', topic_id = feedTopicId, content_type = feedContentType }) => {
+        await fetchFeedPosts(currentUser?.id, { sort, topic_id, content_type, cursor: null, append: false });
+    }, [currentUser?.id, feedTopicId, feedContentType, fetchFeedPosts]);
 
     const handleLoadMorePosts = useCallback(async () => {
         if (isLoadingPosts || isLoadingMorePosts || !feedHasMore || !feedCursor) {
@@ -459,10 +465,11 @@ function App() {
         await fetchFeedPosts(currentUser?.id, {
             sort: feedSort,
             topic_id: feedTopicId,
+            content_type: feedContentType,
             cursor: feedCursor,
             append: true,
         });
-    }, [currentUser?.id, feedCursor, feedHasMore, feedSort, feedTopicId, fetchFeedPosts, isLoadingMorePosts, isLoadingPosts]);
+    }, [currentUser?.id, feedCursor, feedHasMore, feedSort, feedTopicId, feedContentType, fetchFeedPosts, isLoadingMorePosts, isLoadingPosts]);
 
     const toggleTopicExpanded = (topicId) => {
         setExpandedTopicIds((prev) => ({
@@ -473,7 +480,7 @@ function App() {
 
     const resetHomeFeed = async () => {
         setSearchQuery('');
-        await fetchFeedPosts(currentUser?.id, { sort: 'new', topic_id: null, cursor: null, append: false });
+        await fetchFeedPosts(currentUser?.id, { sort: 'new', topic_id: null, content_type: null, cursor: null, append: false });
     };
 
     const handleVote = async (postId, value) => {
@@ -745,6 +752,7 @@ function App() {
                                         posts={filteredPosts}
                                         activeSort={feedSort}
                                         activeTopicId={feedTopicId}
+                                        activeContentType={feedContentType}
                                         role={role}
                                         currentUser={currentUser}
                                         topics={topics}

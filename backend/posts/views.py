@@ -21,6 +21,9 @@ from interactions.models import Vote
 from .models import Post, Topic
 
 
+VALID_CONTENT_TYPES = {choice[0] for choice in Post.CONTENT_TYPE_CHOICES}
+
+
 MAX_POST_MEDIA_FILES = 8
 MAX_POST_IMAGE_BYTES = 10 * 1024 * 1024
 MAX_POST_VIDEO_BYTES = 50 * 1024 * 1024
@@ -188,6 +191,8 @@ def _post_to_dict(post, user_votes_by_post_id=None, vote_scores_by_post_id=None)
 	return {
 		'id': post.id,
 		'title': post.title,
+		'content_type': post.content_type,
+		'content_type_label': post.get_content_type_display(),
 		'content': post.content,
 		'references': post.references,
 		'author_id': post.author_id,
@@ -275,6 +280,15 @@ def _topic_scope_ids(topic_id):
 		frontier = children
 
 	return ids
+
+
+def _normalize_content_type(raw_value):
+	value = (raw_value or '').strip().lower()
+	if not value or value == 'all':
+		return None
+	if value not in VALID_CONTENT_TYPES:
+		return None
+	return value
 
 
 def _is_privileged_role(role):
@@ -408,6 +422,10 @@ def posts_collection(request):
 		page_num = request.GET.get('page', 1)
 		sort_by = (request.GET.get('sort', 'new') or 'new').lower()  # 'new' or 'hot'
 		topic_id = request.GET.get('topic_id')
+		content_type_raw = request.GET.get('content_type')
+		content_type = _normalize_content_type(content_type_raw)
+		if content_type_raw and content_type is None:
+			return JsonResponse({'detail': 'Invalid content_type filter.'}, status=400)
 		
 		# Build queryset with filters
 		queryset = Post.objects.filter(is_deleted=False).select_related('author', 'topic')
@@ -419,6 +437,9 @@ def posts_collection(request):
 			topic_scope_ids = _topic_scope_ids(topic_id)
 			if topic_scope_ids:
 				queryset = queryset.filter(topic_id__in=topic_scope_ids)
+
+		if content_type:
+			queryset = queryset.filter(content_type=content_type)
 		
 		# Apply sorting
 		if sort_by == 'hot':
@@ -462,6 +483,7 @@ def posts_collection(request):
 			'total_pages': paginator.num_pages,
 			'sort': sort_by,
 			'topic_id': topic_id,
+			'content_type': content_type,
 		})
 
 	if request.method == 'POST':
@@ -487,6 +509,10 @@ def posts_collection(request):
 		if topic_id:
 			topic = Topic.objects.filter(id=topic_id).first()
 
+		content_type = _normalize_content_type(payload.get('content_type')) or Post.CONTENT_TYPE_OTHER
+		if content_type not in VALID_CONTENT_TYPES:
+			return JsonResponse({'detail': 'Invalid content_type.'}, status=400)
+
 		media_items, media_error = _normalize_media_items(payload.get('media_items', []), author.id)
 		if media_error:
 			return media_error
@@ -494,6 +520,7 @@ def posts_collection(request):
 		post = Post.objects.create(
 			author=author,
 			topic=topic,
+			content_type=content_type,
 			title=payload['title'],
 			content=payload['content'],
 			references=payload.get('references', ''),
@@ -589,6 +616,10 @@ def post_feed(request):
 	cursor = request.GET.get('cursor')
 	sort_by = (request.GET.get('sort', 'new') or 'new').lower()
 	topic_id = request.GET.get('topic_id')
+	content_type_raw = request.GET.get('content_type')
+	content_type = _normalize_content_type(content_type_raw)
+	if content_type_raw and content_type is None:
+		return JsonResponse({'detail': 'Invalid content_type filter.'}, status=400)
 
 	try:
 		limit = max(1, min(int(limit_raw), 50))
@@ -603,6 +634,9 @@ def post_feed(request):
 		topic_scope_ids = _topic_scope_ids(topic_id)
 		if topic_scope_ids:
 			queryset = queryset.filter(topic_id__in=topic_scope_ids)
+
+	if content_type:
+		queryset = queryset.filter(content_type=content_type)
 
 	if sort_by == 'hot':
 		queryset = queryset.annotate(score=Coalesce(Sum('votes__value'), 0, output_field=IntegerField()))
@@ -650,6 +684,7 @@ def post_feed(request):
 			'has_more': has_more,
 			'sort': sort_by,
 			'topic_id': topic_id,
+			'content_type': content_type,
 		}
 	)
 
@@ -742,6 +777,12 @@ def post_detail(request, post_id):
 
 		if 'topic_id' in payload:
 			post.topic = Topic.objects.filter(id=payload['topic_id']).first()
+
+		if 'content_type' in payload:
+			next_content_type = _normalize_content_type(payload.get('content_type'))
+			if next_content_type is None:
+				return JsonResponse({'detail': 'Invalid content_type.'}, status=400)
+			post.content_type = next_content_type
 
 		if 'media_items' in payload:
 			media_items, media_error = _normalize_media_items(payload.get('media_items'), post.author_id)

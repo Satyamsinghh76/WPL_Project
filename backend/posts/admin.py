@@ -11,6 +11,6 @@ class TopicAdmin(admin.ModelAdmin):
 
 @admin.register(Post)
 class PostAdmin(admin.ModelAdmin):
-	list_display = ('id', 'title', 'author', 'topic', 'is_deleted', 'created_at')
-	list_filter = ('is_deleted', 'topic')
+	list_display = ('id', 'title', 'author', 'topic', 'content_type', 'is_deleted', 'created_at')
+	list_filter = ('is_deleted', 'topic', 'content_type')
 	search_fields = ('title', 'content', 'author__username')

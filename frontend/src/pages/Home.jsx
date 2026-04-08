@@ -5,6 +5,23 @@ import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 import MarkdownContent from '../components/MarkdownContent';
 import PostMediaCarousel from '../components/PostMediaCarousel';
 
+
+const CONTENT_TYPE_OPTIONS = [
+    { value: 'question', label: 'Question' },
+    { value: 'theory', label: 'Theory' },
+    { value: 'experiment', label: 'Experiment' },
+    { value: 'claim', label: 'Claim' },
+    { value: 'review', label: 'Review' },
+    { value: 'concept', label: 'Concept (expl)' },
+    { value: 'other', label: 'Other' },
+];
+
+
+function getContentTypeLabel(value) {
+    const found = CONTENT_TYPE_OPTIONS.find((option) => option.value === value);
+    return found ? found.label : 'Other';
+}
+
 function formatTime(isoTime) {
     if (!isoTime) {
         return 'just now';
@@ -34,6 +51,7 @@ export default function Home({
     posts,
     activeSort,
     activeTopicId,
+    activeContentType,
     role,
     currentUser,
     topics,
@@ -52,6 +70,7 @@ export default function Home({
 }) {
     const [sortBy, setSortBy] = useState('new');
     const [filterTopic, setFilterTopic] = useState('all');
+    const [filterContentType, setFilterContentType] = useState('all');
     const [showPostForm, setShowPostForm] = useState(false);
     const [showTopicForm, setShowTopicForm] = useState(false);
     const [topicDraft, setTopicDraft] = useState({ name: '', parent_id: '' });
@@ -80,18 +99,41 @@ export default function Home({
         setFilterTopic(activeTopicId == null ? 'all' : String(activeTopicId));
     }, [activeTopicId]);
 
+    useEffect(() => {
+        setFilterContentType(activeContentType == null ? 'all' : String(activeContentType));
+    }, [activeContentType]);
+
     // Fetch posts with new filters when sort or topic changes
     const handleSortChange = (newSort) => {
         setSortBy(newSort);
         if (handleFilterChange) {
-            handleFilterChange({ sort: newSort, topic_id: filterTopic === 'all' ? null : filterTopic });
+            handleFilterChange({
+                sort: newSort,
+                topic_id: filterTopic === 'all' ? null : filterTopic,
+                content_type: filterContentType === 'all' ? null : filterContentType,
+            });
         }
     };
 
     const handleTopicChange = (newTopic) => {
         setFilterTopic(newTopic);
         if (handleFilterChange) {
-            handleFilterChange({ sort: sortBy, topic_id: newTopic === 'all' ? null : newTopic });
+            handleFilterChange({
+                sort: sortBy,
+                topic_id: newTopic === 'all' ? null : newTopic,
+                content_type: filterContentType === 'all' ? null : filterContentType,
+            });
+        }
+    };
+
+    const handleContentTypeChange = (nextContentType) => {
+        setFilterContentType(nextContentType);
+        if (handleFilterChange) {
+            handleFilterChange({
+                sort: sortBy,
+                topic_id: filterTopic === 'all' ? null : filterTopic,
+                content_type: nextContentType === 'all' ? null : nextContentType,
+            });
         }
     };
 
@@ -495,6 +537,22 @@ export default function Home({
                         </div>
 
                         <div>
+                            <label className="block text-sm font-medium text-academic-700 mb-1">Content Type</label>
+                            <select
+                                value={formData.content_type || 'question'}
+                                onChange={(e) => setFormData({ ...formData, content_type: e.target.value })}
+                                className="input"
+                                required
+                            >
+                                {CONTENT_TYPE_OPTIONS.map((option) => (
+                                    <option key={option.value} value={option.value}>
+                                        {option.label}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div>
                             <div className="mb-1 flex items-center justify-between">
                                 <label className="block text-sm font-medium text-academic-700">Content</label>
                                 <button
@@ -644,6 +702,18 @@ export default function Home({
                             <option value="new">Newest</option>
                         </select>
                     </div>
+
+                    <div className="flex items-center space-x-2 bg-white rounded-lg border border-academic-200 px-3 py-2">
+                        <Filter className="w-4 h-4 text-academic-500" />
+                        <select value={filterContentType} onChange={(e) => handleContentTypeChange(e.target.value)} className="text-sm border-0 focus:ring-0 bg-transparent">
+                            <option value="all">All Types</option>
+                            {CONTENT_TYPE_OPTIONS.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                    {option.label}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
                 </div>
 
                 <div className="text-sm text-academic-600">{posts.length} {posts.length === 1 ? 'discussion' : 'discussions'}</div>
@@ -679,7 +749,10 @@ export default function Home({
                             >
                                 <div className="space-y-5 sm:space-y-6">
                                     <div className="flex items-center justify-between text-xs text-academic-500">
-                                        <span className="inline-flex items-center rounded-full border border-academic-200 px-2 py-0.5">{post.topic || 'Uncategorized'}</span>
+                                        <div className="flex items-center gap-2">
+                                            <span className="inline-flex items-center rounded-full border border-academic-200 px-2 py-0.5">{post.topic || 'Uncategorized'}</span>
+                                            <span className="inline-flex items-center rounded-full border border-primary-200 bg-primary-50 px-2 py-0.5 text-primary-700">{getContentTypeLabel(post.content_type)}</span>
+                                        </div>
                                         <span>{formatTime(post.created_at)}</span>
                                     </div>
 
