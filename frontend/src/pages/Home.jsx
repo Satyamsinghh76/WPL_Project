@@ -67,6 +67,8 @@ export default function Home({
     handleFilterChange,
     formData,
     setFormData,
+    postPublishError,
+    isPublishingPost,
 }) {
     const [sortBy, setSortBy] = useState('new');
     const [filterTopic, setFilterTopic] = useState('all');
@@ -478,6 +480,12 @@ export default function Home({
                         }}
                         className="space-y-4"
                     >
+                        {postPublishError && (
+                            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                                {postPublishError}
+                            </div>
+                        )}
+
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-sm font-medium text-academic-700 mb-1">Academic Topic</label>
@@ -747,8 +755,8 @@ export default function Home({
                             <button type="button" onClick={() => setShowPostForm(false)} className="btn btn-outline">
                                 Cancel
                             </button>
-                            <button type="submit" className="btn btn-primary">
-                                Publish Discussion
+                            <button type="submit" className="btn btn-primary" disabled={isPublishingPost}>
+                                {isPublishingPost ? 'Publishing...' : 'Publish Discussion'}
                             </button>
                         </div>
                     </form>

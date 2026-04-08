@@ -14,6 +14,36 @@ function normalizeBaseUrl(url) {
 
 const BASE_URL = normalizeBaseUrl(RAW_BASE_URL);
 
+function getErrorMessage(data, status) {
+  const fallback = `Request failed with status ${status}`;
+  const detail = data?.detail ?? data?.error;
+
+  if (typeof detail === 'string' && detail.trim()) {
+    const trimmed = detail.trim();
+
+    // Some backend errors include a nested JSON string (for example, from upstream APIs).
+    if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (typeof parsed?.message === 'string' && parsed.message.trim()) return parsed.message.trim();
+        if (typeof parsed?.error === 'string' && parsed.error.trim()) return parsed.error.trim();
+        if (typeof parsed?.msg === 'string' && parsed.msg.trim()) return parsed.msg.trim();
+      } catch {
+        return trimmed;
+      }
+    }
+
+    return trimmed;
+  }
+
+  if (typeof detail === 'object' && detail) {
+    if (typeof detail.message === 'string' && detail.message.trim()) return detail.message.trim();
+    if (typeof detail.error === 'string' && detail.error.trim()) return detail.error.trim();
+  }
+
+  return fallback;
+}
+
 async function parseResponse(response) {
   const contentType = response.headers.get('content-type') || '';
 
@@ -28,7 +58,7 @@ async function parseResponse(response) {
     const text = await response.text();
     const data = text ? JSON.parse(text) : {};
     if (!response.ok) {
-      const message = data?.detail || data?.error || `Request failed with status ${response.status}`;
+      const message = getErrorMessage(data, response.status);
       throw new Error(message);
     }
     return data;

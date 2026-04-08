@@ -925,18 +925,53 @@ def post_detail(request, post_id):
 		}:
 			return JsonResponse({'detail': 'You do not have permission to edit this post.'}, status=403)
 
-		for field in ['title', 'content', 'references']:
-			if field in payload:
-				setattr(post, field, payload[field])
+		if 'title' in payload:
+			title = (payload.get('title') or '').strip()
+			if not title:
+				return JsonResponse({'detail': 'Title cannot be empty.'}, status=400)
+			post.title = title
+
+		if 'content' in payload:
+			content = payload.get('content')
+			if not isinstance(content, str):
+				return JsonResponse({'detail': 'Content must be a string.'}, status=400)
+			post.content = content
+
+		if 'references' in payload:
+			references_list = payload.get('references', [])
+			if not isinstance(references_list, list):
+				return JsonResponse({'detail': 'references must be a list.'}, status=400)
+			if not references_list:
+				references_list = [{'title': 'Reference', 'url': 'https://scholr.com'}]
+			for ref in references_list:
+				if not isinstance(ref, dict) or not (ref.get('url') or '').strip():
+					return JsonResponse({'detail': 'Each reference must have a url.'}, status=400)
+			post.references = json.dumps(references_list)
 
 		if 'topic_id' in payload:
-			post.topic = Topic.objects.filter(id=payload['topic_id']).first()
+			topic_id = payload.get('topic_id')
+			post.topic = Topic.objects.filter(id=topic_id).first() if topic_id else None
 
 		if 'content_type' in payload:
 			next_content_type = _normalize_content_type(payload.get('content_type'))
 			if next_content_type is None:
 				return JsonResponse({'detail': 'Invalid content_type.'}, status=400)
 			post.content_type = next_content_type
+
+		if 'is_ai' in payload:
+			is_ai = payload.get('is_ai')
+			if isinstance(is_ai, bool):
+				post.is_ai = is_ai
+			elif isinstance(is_ai, str):
+				value = is_ai.strip().lower()
+				if value in {'true', '1', 'yes'}:
+					post.is_ai = True
+				elif value in {'false', '0', 'no'}:
+					post.is_ai = False
+				else:
+					return JsonResponse({'detail': 'is_ai must be true or false.'}, status=400)
+			else:
+				return JsonResponse({'detail': 'is_ai must be a boolean.'}, status=400)
 
 		if 'media_items' in payload:
 			media_items, media_error = _normalize_media_items(payload.get('media_items'), post.author_id)

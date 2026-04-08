@@ -197,6 +197,8 @@ function App() {
     const [posts, setPosts] = useState([]);
     const [topics, setTopics] = useState([]);
     const [formData, setFormData] = useState({ title: '', topic_id: '', content_type: 'question', content: '', references: [], is_ai: false, media_files: [] });
+    const [postPublishError, setPostPublishError] = useState('');
+    const [isPublishingPost, setIsPublishingPost] = useState(false);
     const [rightPanelOpen, setRightPanelOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState({ topics: [], posts: [], users: [] });
@@ -388,6 +390,8 @@ function App() {
         }
 
         try {
+            setPostPublishError('');
+            setIsPublishingPost(true);
             let mediaItems = [];
             const mediaFiles = Array.isArray(formData.media_files) ? formData.media_files : [];
             if (mediaFiles.length > 0) {
@@ -430,10 +434,13 @@ function App() {
 
             setPosts((prev) => [data, ...prev]);
             setFormData({ title: '', topic_id: '', content_type: 'question', content: '', references: [], is_ai: false, media_files: [] });
+            setPostPublishError('');
             return true;
         } catch (error) {
-            alert(error?.message || 'Unable to publish post.');
+            setPostPublishError(error?.message || 'Unable to publish post.');
             return false;
+        } finally {
+            setIsPublishingPost(false);
         }
     };
 
@@ -785,6 +792,8 @@ function App() {
                                         handleFilterChange={handleFilterChange}
                                         formData={formData}
                                         setFormData={setFormData}
+                                        postPublishError={postPublishError}
+                                        isPublishingPost={isPublishingPost}
                                     />
                                 }
                             />
