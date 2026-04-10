@@ -1,10 +1,11 @@
 from django.contrib import admin
-from django.http import JsonResponse
+from django.http import HttpResponse
 from django.urls import include, path
 
 
 def health(request):
-    return JsonResponse({'status': 'ok', 'framework': 'django'})
+    # Return an empty response so uptime pings do not transfer unnecessary data.
+    return HttpResponse(status=204)
 
 
 urlpatterns = [
@@ -14,3 +15,6 @@ urlpatterns = [
     path('api/', include('posts.urls')),
     path('api/', include('interactions.urls')),
 ]
+
+
+#     path('api/health/', health, name='api_health'),
