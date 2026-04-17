@@ -182,6 +182,8 @@ def analytics_summary(request):
             all_visits.filter(user__isnull=False).values('user_id').distinct().count()
         ),
         'anonymous_visits_all_time': all_visits.filter(user__isnull=True).count(),
+        'login_sessions_all_time': Event.objects.filter(event_type=Event.TYPE_LOGIN).count(),
+        'unique_login_users_all_time': Event.objects.filter(event_type=Event.TYPE_LOGIN).values('user_id').distinct().count(),
     }
 
     return JsonResponse(summary)

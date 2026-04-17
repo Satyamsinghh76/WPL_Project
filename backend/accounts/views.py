@@ -384,7 +384,7 @@ def login(request):
 		user.save(update_fields=['email_verified'])
 
 	token = AuthToken.issue_for_user(user)
-	track_event(Event.TYPE_LOGIN, user=user, metadata={'method': 'password'})
+	track_event(Event.TYPE_LOGIN, user=user, metadata={'method': 'password', 'auth_token_id': token.id})
 
 	return JsonResponse({
 		'token': token.key,
@@ -583,7 +583,7 @@ def oauth_callback(request):
 		user.save(update_fields=['role'])
 
 	token = AuthToken.issue_for_user(user)
-	track_event(Event.TYPE_LOGIN, user=user, metadata={'method': 'oauth'})
+	track_event(Event.TYPE_LOGIN, user=user, metadata={'method': 'oauth', 'auth_token_id': token.id})
 	return JsonResponse({
 		'token': token.key,
 		'token_expires_at': token.expires_at.isoformat(),

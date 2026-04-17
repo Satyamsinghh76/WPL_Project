@@ -215,6 +215,7 @@ function App() {
     const [feedCursor, setFeedCursor] = useState(null);
     const [feedHasMore, setFeedHasMore] = useState(true);
     const [expandedTopicIds, setExpandedTopicIds] = useState({});
+    const location = useLocation();
 
     useEffect(() => {
         const hash = window.location.hash || '';
@@ -338,7 +339,7 @@ function App() {
     }, [theme]);
 
     useEffect(() => {
-        const pagePath = window.location.pathname || '/';
+        const pagePath = `${location.pathname || '/'}${location.search || ''}`;
         const dailyVisitKey = `scholr_visit_${pagePath}_${new Date().toISOString().slice(0, 10)}`;
         if (sessionStorage.getItem(dailyVisitKey)) {
             return;
@@ -353,7 +354,7 @@ function App() {
             },
             authHeaders(true),
         ).catch(() => {});
-    }, [currentUser?.token, currentUser?.id]);
+    }, [location.pathname, location.search, currentUser?.token, currentUser?.id]);
 
     useEffect(() => {
         fetchTopics();
@@ -838,7 +839,7 @@ function App() {
                             <Route path="/verify-email" element={<VerifyEmail />} />
                             <Route path="/search" element={<SearchResults currentUser={currentUser} onTopicSelect={(topicId) => handleFilterChange({ sort: 'new', topic_id: topicId })} />} />
                             <Route path="/messages" element={<Messages currentUser={currentUser} authHeaders={authHeaders} onAuthExpired={handleLogout} />} />
-                            <Route path="/analytics" element={<AnalyticsPage currentUser={currentUser} authHeaders={authHeaders} isAdmin={isAdminRole} />} />
+                            <Route path="/analytics" element={<AnalyticsPage currentUser={currentUser} authHeaders={authHeaders} isAdmin={isAdminRole} theme={theme} />} />
                         </Routes>
                     </main>
                 </div>
