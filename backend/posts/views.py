@@ -16,6 +16,8 @@ from django.utils.dateparse import parse_datetime
 from accounts.auth import get_authenticated_user, get_effective_role, parse_json_body
 from accounts.models import PlatformUser
 from accounts.storage import resolve_profile_picture_url
+from analytics.models import Event
+from analytics.tracking import track_event
 from interactions.models import Vote
 
 from .models import Post, Topic
@@ -568,6 +570,15 @@ def posts_collection(request):
 		# Refresh from DB to get related data
 		post.refresh_from_db()
 		post = Post.objects.filter(id=post.id).select_related('author', 'topic').first()
+		track_event(
+			Event.TYPE_POST_CREATED,
+			user=author,
+			metadata={
+				'post_id': post.id,
+				'topic_id': post.topic_id,
+				'content_type': post.content_type,
+			},
+		)
 		return JsonResponse(_post_to_dict(post, user_votes_by_post_id={}, vote_scores_by_post_id={}), status=201)
 
 	return JsonResponse({'detail': 'Method not allowed.'}, status=405)

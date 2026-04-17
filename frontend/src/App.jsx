@@ -12,6 +12,7 @@ import {
     Home as HomeIcon,
     MessageSquare,
     Shield,
+    BarChart3,
     Moon,
     Sun,
     PanelRight,
@@ -32,6 +33,7 @@ import ResetPassword from './pages/ResetPassword';
 import VerifyEmail from './pages/VerifyEmail';
 import SearchResults from './pages/SearchResults';
 import Messages from './pages/Messages';
+import AnalyticsPage from './pages/Analytics';
 import * as API from './api';
 import './index.css';
 const USER_STORAGE_KEY = 'scholr_current_user';
@@ -336,6 +338,24 @@ function App() {
     }, [theme]);
 
     useEffect(() => {
+        const pagePath = window.location.pathname || '/';
+        const dailyVisitKey = `scholr_visit_${pagePath}_${new Date().toISOString().slice(0, 10)}`;
+        if (sessionStorage.getItem(dailyVisitKey)) {
+            return;
+        }
+
+        sessionStorage.setItem(dailyVisitKey, '1');
+        API.trackAnalyticsVisit(
+            {
+                page: pagePath,
+                source: 'app_boot',
+                referrer: document.referrer || '',
+            },
+            authHeaders(true),
+        ).catch(() => {});
+    }, [currentUser?.token, currentUser?.id]);
+
+    useEffect(() => {
         fetchTopics();
     }, []);
 
@@ -618,7 +638,7 @@ function App() {
                         <div className="flex items-center justify-between h-16">
                             <div className="flex items-center">
                                 <Link to="/" className="flex items-center space-x-2">
-                                    <div className="w-8 h-8 bg-gradient-to-br from-primary-500 to-primary-600 rounded-lg flex items-center justify-center">
+                                    <div className="w-8 h-8 bg-linear-to-br from-primary-500 to-primary-600 rounded-lg flex items-center justify-center">
                                         <Sparkles className="w-5 h-5 text-white" />
                                     </div>
                                     <span className="text-xl font-bold text-gradient">Scholr</span>
@@ -702,6 +722,12 @@ function App() {
                                             <HomeIcon className="w-4 h-4" />
                                             <span>Home Feed</span>
                                         </Link>
+                                        {isAdminRole && (
+                                            <Link to="/analytics" className="flex items-center space-x-2 px-3 py-2 rounded-lg hover:bg-academic-100 text-academic-700 transition-colors">
+                                                <BarChart3 className="w-4 h-4" />
+                                                <span>Analytics</span>
+                                            </Link>
+                                        )}
                                         {canUseMessaging && (
                                             <Link to="/messages" className="flex items-center space-x-2 px-3 py-2 rounded-lg hover:bg-academic-100 text-academic-700 transition-colors">
                                                 <MessageSquare className="w-4 h-4" />
@@ -812,14 +838,15 @@ function App() {
                             <Route path="/verify-email" element={<VerifyEmail />} />
                             <Route path="/search" element={<SearchResults currentUser={currentUser} onTopicSelect={(topicId) => handleFilterChange({ sort: 'new', topic_id: topicId })} />} />
                             <Route path="/messages" element={<Messages currentUser={currentUser} authHeaders={authHeaders} onAuthExpired={handleLogout} />} />
+                            <Route path="/analytics" element={<AnalyticsPage currentUser={currentUser} authHeaders={authHeaders} isAdmin={isAdminRole} />} />
                         </Routes>
                     </main>
                 </div>
 
                 {rightPanelOpen && (
                     <>
-                        <div className="fixed inset-0 bg-black/60 backdrop-blur-[1px] z-[60] md:hidden" onClick={() => setRightPanelOpen(false)} />
-                        <aside className="fixed top-0 right-0 h-full w-80 max-w-[90vw] bg-white border-l border-academic-200 z-[70] p-5 overflow-y-auto md:hidden">
+                        <div className="fixed inset-0 bg-black/60 backdrop-blur-[1px] z-60 md:hidden" onClick={() => setRightPanelOpen(false)} />
+                        <aside className="fixed top-0 right-0 h-full w-80 max-w-[90vw] bg-white border-l border-academic-200 z-70 p-5 overflow-y-auto md:hidden">
                             <div className="flex items-center justify-between mb-4">
                                 <h3 className="text-lg font-semibold text-academic-900">Quick Panel</h3>
                                 <button onClick={() => setRightPanelOpen(false)} className="p-2 rounded-lg hover:bg-academic-100">
@@ -840,6 +867,12 @@ function App() {
                                     {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
                                     <span>{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
                                 </button>
+                                {isAdminRole && (
+                                    <Link to="/analytics" onClick={() => setRightPanelOpen(false)} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg border border-academic-200 hover:bg-academic-50 text-academic-700">
+                                        <BarChart3 className="w-4 h-4" />
+                                        <span>Analytics</span>
+                                    </Link>
+                                )}
                                 {isLoggedIn && (
                                     <button className="w-full flex items-center gap-2 px-3 py-2 rounded-lg border border-academic-200 hover:bg-academic-50 text-academic-700">
                                         <Bell className="w-4 h-4" />
@@ -912,11 +945,17 @@ function App() {
 
                 {isLoggedIn && (
                     <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-academic-200 bg-white dark:bg-slate-900 dark:border-slate-700 shadow-[0_-6px_18px_rgba(15,23,42,0.08)] px-4 py-2">
-                        <div className="grid grid-cols-3 gap-2 text-xs">
+                        <div className={`grid gap-2 text-xs ${canUseMessaging ? 'grid-cols-4' : 'grid-cols-3'}`}>
                             <NavLink to="/" onClick={resetHomeFeed} className={({ isActive }) => `flex flex-col items-center gap-1 py-2 rounded-lg transition-colors ${isActive ? 'text-primary-700 bg-primary-100 dark:text-blue-200 dark:bg-slate-800' : 'text-academic-700 dark:text-slate-300'}`}>
                                 <HomeIcon className="w-4 h-4" />
                                 <span>Home</span>
                             </NavLink>
+                            {isAdminRole && (
+                                <NavLink to="/analytics" className={({ isActive }) => `flex flex-col items-center gap-1 py-2 rounded-lg transition-colors ${isActive ? 'text-primary-700 bg-primary-100 dark:text-blue-200 dark:bg-slate-800' : 'text-academic-700 dark:text-slate-300'}`}>
+                                    <BarChart3 className="w-4 h-4" />
+                                    <span>Analytics</span>
+                                </NavLink>
+                            )}
                             <NavLink to="/search" className={({ isActive }) => `flex flex-col items-center gap-1 py-2 rounded-lg transition-colors ${isActive ? 'text-primary-700 bg-primary-100 dark:text-blue-200 dark:bg-slate-800' : 'text-academic-700 dark:text-slate-300'}`}>
                                 <Search className="w-4 h-4" />
                                 <span>Search</span>

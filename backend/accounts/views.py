@@ -11,6 +11,9 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.hashers import check_password, make_password
 
+from analytics.models import Event
+from analytics.tracking import track_event
+
 from .auth import get_allowed_role_switch_targets, get_authenticated_user, get_bearer_token, get_effective_role
 from .emails import send_verification_email, send_password_reset_email, send_welcome_email
 from .models import AuthToken, EmailToken, PlatformUser
@@ -381,6 +384,7 @@ def login(request):
 		user.save(update_fields=['email_verified'])
 
 	token = AuthToken.issue_for_user(user)
+	track_event(Event.TYPE_LOGIN, user=user, metadata={'method': 'password'})
 
 	return JsonResponse({
 		'token': token.key,
@@ -579,6 +583,7 @@ def oauth_callback(request):
 		user.save(update_fields=['role'])
 
 	token = AuthToken.issue_for_user(user)
+	track_event(Event.TYPE_LOGIN, user=user, metadata={'method': 'oauth'})
 	return JsonResponse({
 		'token': token.key,
 		'token_expires_at': token.expires_at.isoformat(),

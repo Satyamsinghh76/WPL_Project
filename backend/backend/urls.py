@@ -12,6 +12,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('health/', health, name='health'),
     path('api/accounts/', include('accounts.urls')),
+    path('api/analytics/', include('analytics.urls')),
     path('api/', include('posts.urls')),
     path('api/', include('interactions.urls')),
 ]

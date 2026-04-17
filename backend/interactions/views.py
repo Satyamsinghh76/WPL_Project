@@ -7,6 +7,8 @@ from django.views.decorators.csrf import csrf_exempt
 from accounts.auth import get_authenticated_user, get_effective_role, parse_json_body
 from accounts.models import PlatformUser
 from accounts.storage import resolve_profile_picture_url
+from analytics.models import Event
+from analytics.tracking import track_event
 from posts.models import Post
 
 from .models import Comment, CommentVote, Conversation, ConversationMember, Message, Report, Vote
@@ -63,6 +65,11 @@ def vote_on_post(request, post_id):
         return JsonResponse({'detail': 'General users cannot vote. Upgrade to vote.', 'code': 'voting_not_allowed'}, status=403)
 
     Vote.objects.update_or_create(user=user, post=post, defaults={'value': value})
+    track_event(
+        Event.TYPE_VOTE,
+        user=user,
+        metadata={'post_id': post.id, 'value': value},
+    )
     score = Vote.objects.filter(post=post).aggregate(score=Sum('value'))['score'] or 0
     return JsonResponse({'post_id': post.id, 'score': score, 'user_vote': value})
 
@@ -264,6 +271,11 @@ def comment_vote(request, comment_id):
         return JsonResponse({'detail': 'General users cannot vote.', 'code': 'comment_voting_not_allowed'}, status=403)
 
     CommentVote.objects.update_or_create(user=user, comment=comment, defaults={'value': value})
+    track_event(
+        Event.TYPE_EVIDENCE_REVIEW,
+        user=user,
+        metadata={'comment_id': comment.id, 'post_id': comment.post_id, 'value': value},
+    )
     score = CommentVote.objects.filter(comment=comment).aggregate(score=Sum('value'))['score'] or 0
     return JsonResponse({'comment_id': comment.id, 'score': score, 'user_vote': value})
 

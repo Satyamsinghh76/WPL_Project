@@ -393,4 +393,30 @@ export const getChatUsers = (authHeaders) =>
     headers: authHeaders,
   });
 
+// ============ ANALYTICS ============
+export const fetchAnalytics = (range = 'daily', authHeaders = {}) =>
+  request(`/analytics/?range=${encodeURIComponent(range)}`, {
+    method: 'GET',
+    headers: authHeaders,
+  });
+
+export const fetchTopContributors = (range = 'monthly', limit = 5, authHeaders = {}) =>
+  request(`/analytics/contributors/?range=${encodeURIComponent(range)}&limit=${limit}`, {
+    method: 'GET',
+    headers: authHeaders,
+  });
+
+export const fetchAnalyticsSummary = (range = 'daily', authHeaders = {}) =>
+  request(`/analytics/summary/?range=${encodeURIComponent(range)}`, {
+    method: 'GET',
+    headers: authHeaders,
+  });
+
+export const trackAnalyticsVisit = (payload, authHeaders = {}) =>
+  request('/analytics/track-visit/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(authHeaders || {}) },
+    body: JSON.stringify(payload || {}),
+  });
+
 export { BASE_URL };
